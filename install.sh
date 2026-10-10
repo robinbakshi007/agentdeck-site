@@ -1,7 +1,7 @@
 #!/bin/sh
-# AgentDeck host installer:  curl -fsSL https://robinbakshi007.github.io/agentdeck-site/install.sh | sh
+# AgentDeck host installer:  curl -fsSL https://agentdeck.finnova.com.au/install.sh | sh
 set -e
-BASE="https://robinbakshi007.github.io/agentdeck-site"
+BASE="https://agentdeck.finnova.com.au"
 if ! command -v node >/dev/null 2>&1; then
   echo "AgentDeck needs Node.js 20 or newer. Install it from https://nodejs.org (or: brew install node), then run this again."
   exit 1

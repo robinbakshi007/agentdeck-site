@@ -12201,7 +12201,7 @@ var HostServer = class {
 
 // src/live/main.ts
 var PORT = Number(process.env["AGENTDECK_PORT"] || DEFAULT_PORT);
-var DEFAULT_RELAY_URL = "wss://agentdeck-relay.testcustomer2022.workers.dev";
+var DEFAULT_RELAY_URL = "wss://agentdeck-relay.finnova.com.au";
 function localCall(method, path, body) {
   return new Promise((resolvePromise, reject) => {
     const payload = body === void 0 ? "" : JSON.stringify(body);
