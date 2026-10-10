@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Install AgentDeck Host</title><link rel="stylesheet" href="style.css"></head><body><main>
+<nav><a class="brand" href="./">⬡ AgentDeck</a><a href="install.html">Install</a><a href="support.html">Support</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a></nav>
+<h1>Install the AgentDeck host</h1>
+<p class="muted">The host is a small background program that connects your phone to Antigravity on your computer. It needs <a href="https://nodejs.org">Node.js 20+</a>.</p>
+<div class="card"><p><b>Mac or Linux</b>: open Terminal and run:</p>
+<p><code>curl -fsSL https://robinbakshi007.github.io/agentdeck-site/install.sh | sh</code></p>
+<p class="muted">It downloads one file to <code>~/.agentdeck/bin</code>, checks its checksum, and starts it at login.</p></div>
+<div class="card"><p><b>Windows</b>: download <a href="agentdeck-host.cjs">agentdeck-host.cjs</a>, then in PowerShell run <code>node agentdeck-host.cjs install</code>.</p></div>
+<h2>Pair your phone</h2>
+<ol><li>Open Antigravity.</li><li>Visit <code>http://localhost:48632</code> on the computer and tap <b>Show pairing code</b>.</li><li>In the AgentDeck app, tap <b>Scan pairing code</b>.</li></ol>
+<h2>Uninstall</h2>
+<p><code>node ~/.agentdeck/bin/agentdeck-host.cjs uninstall</code> then delete <code>~/.agentdeck</code>.</p>
+</main></body></html>
