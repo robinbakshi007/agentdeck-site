@@ -10486,6 +10486,7 @@ var AntigravityError = class extends Error {
     this.code = code;
   }
 };
+var ANTIGRAVITY_BINARY = /[\\/]extensions[\\/]antigravity[\\/]bin[\\/]language_server_[a-z0-9_]+(\.exe)?$/i;
 async function listLanguageServerProcesses() {
   if (process.platform === "win32") {
     const { stdout: stdout2 } = await execFileAsync(
@@ -10497,10 +10498,11 @@ async function listLanguageServerProcesses() {
       ],
       { maxBuffer: 8 * 1024 * 1024 }
     );
-    return stdout2.split(/\r?\n/).map((l) => l.split("	")).filter((p) => p.length >= 2 && /^\d+$/.test(p[0])).map(([pid, ...rest]) => ({ pid: Number(pid), command: rest.join("	") }));
+    return stdout2.split(/\r?\n/).map((l) => l.split("	")).filter((p) => p.length >= 2 && /^\d+$/.test(p[0])).map(([pid, ...rest]) => ({ pid: Number(pid), command: rest.join("	") })).filter((p) => ANTIGRAVITY_BINARY.test(p.command.replace(/^"([^"]+)".*$/, "$1").split(" --")[0]));
   }
-  const { stdout } = await execFileAsync("ps", ["-axww", "-o", "pid=,command="], { maxBuffer: 16 * 1024 * 1024 });
-  return stdout.split("\n").map((l) => l.trim().match(/^(\d+)\s+(.*)$/)).filter((m) => !!m && /language_server_[a-z0-9_]+/.test(m[2]) && /--csrf_token/.test(m[2])).filter((m) => /antigravity/i.test(m[2])).map((m) => ({ pid: Number(m[1]), command: m[2] }));
+  const { stdout } = await execFileAsync("ps", ["-axww", "-o", "pid=,uid=,command="], { maxBuffer: 16 * 1024 * 1024 });
+  const uid = process.getuid?.();
+  return stdout.split("\n").map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter((m) => !!m && /--csrf_token/.test(m[3])).filter((m) => uid === void 0 || Number(m[2]) === uid).filter((m) => ANTIGRAVITY_BINARY.test(m[3].split(" --")[0])).map((m) => ({ pid: Number(m[1]), command: m[3] }));
 }
 async function listeningPorts(pid) {
   try {
@@ -10977,6 +10979,7 @@ async function currentBranch(cwd) {
 }
 function countLines(path) {
   try {
+    if ((0, import_fs.lstatSync)(path).isSymbolicLink()) return { lines: 1, binary: false };
     if ((0, import_fs.statSync)(path).size > 5 * 1024 * 1024) return { lines: 0, binary: true };
     const buf = (0, import_fs.readFileSync)(path);
     if (buf.subarray(0, 8e3).includes(0)) return { lines: 0, binary: true };
@@ -11040,6 +11043,12 @@ async function fileDiff(cwd, file) {
   const abs = (0, import_path.normalize)((0, import_path.join)(cwd, file));
   const rel = (0, import_path.relative)(cwd, abs);
   if (rel.startsWith("..") || (0, import_path.isAbsolute)(rel)) throw new Error("Path is outside the workspace");
+  if ((0, import_fs.existsSync)(abs)) {
+    const realRoot = (0, import_fs.realpathSync)(cwd);
+    const realRel = (0, import_path.relative)(realRoot, (0, import_fs.realpathSync)(abs));
+    if ((0, import_fs.lstatSync)(abs).isSymbolicLink()) return { diff: `Symbolic link ${rel} (contents not shown)`, truncated: false };
+    if (realRel.startsWith("..") || (0, import_path.isAbsolute)(realRel)) throw new Error("Path is outside the workspace");
+  }
   let diff = "";
   const tracked = await git(cwd, ["ls-files", "--error-unmatch", "--", rel]).then(
     () => true,
@@ -11159,7 +11168,7 @@ var AgentDeckService = class extends import_events.EventEmitter {
           }
         }
         if (before && runStatus(before.status) === "running" && status2 === "idle") {
-          void this.notify("Agent finished", s.summary || "Your Antigravity task is done", id);
+          void this.notify("Agent finished", "Your task is done. Open AgentDeck to see the result.", id);
         }
       }
       this.publishList();
@@ -11197,8 +11206,7 @@ var AgentDeckService = class extends import_events.EventEmitter {
       if (!isSettled(step) && newUnsettled < 0) newUnsettled = idx;
       if (item?.kind === "approval" && !t.notifiedApprovals.has(idx)) {
         t.notifiedApprovals.add(idx);
-        const title = this.summaries.get(t.id)?.summary || "Antigravity";
-        void this.notify("Approval needed", `${title}: ${item.title}`, t.id);
+        void this.notify("Approval needed", "The agent is waiting for you. Open AgentDeck to review.", t.id);
       }
     });
     for (const [idx, step] of t.raw) if (isSettled(step)) t.raw.delete(idx);
@@ -11442,9 +11450,9 @@ var AgentDeckService = class extends import_events.EventEmitter {
         case "devices.list":
           return this.store.listDevices().map(({ key: _key, pushToken, ...d }) => ({ ...d, push: !!pushToken, current: d.deviceId === deviceId }));
         case "devices.revoke": {
-          if (typeof p?.deviceId !== "string") throw new RpcError("deviceId is required");
-          const removed = this.store.removeDevice(p.deviceId);
-          this.emit("revoked", p.deviceId);
+          if (p?.deviceId !== void 0 && p.deviceId !== deviceId) throw new RpcError("Remove other phones from the dashboard on your Mac");
+          const removed = this.store.removeDevice(deviceId);
+          this.emit("revoked", deviceId);
           return { ok: removed };
         }
         default:
@@ -11464,7 +11472,7 @@ var import_path2 = require("path");
 
 // src/live/wire.ts
 var import_tweetnacl = __toESM(require_nacl_fast());
-var WIRE_VERSION = 1;
+var WIRE_VERSION = 2;
 var DEFAULT_PORT = 48632;
 var B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 var B64_LOOKUP = {};
@@ -11525,8 +11533,17 @@ function open(key, box) {
     return null;
   }
 }
-function newSessionKey() {
-  return import_tweetnacl.default.randomBytes(import_tweetnacl.default.secretbox.keyLength);
+function newEphemeralKeyPair() {
+  return import_tweetnacl.default.box.keyPair();
+}
+function deriveSessionKey(mySecret, theirPublic, pairingKey) {
+  const shared = import_tweetnacl.default.scalarMult(mySecret, theirPublic);
+  const label = utf8Encode("agentdeck-session-v2");
+  const buf = new Uint8Array(label.length + shared.length + pairingKey.length);
+  buf.set(label, 0);
+  buf.set(shared, label.length);
+  buf.set(pairingKey, label.length + shared.length);
+  return import_tweetnacl.default.hash(buf).slice(0, 32);
 }
 var CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 function newPairingCode() {
@@ -11565,6 +11582,7 @@ var Store = class {
   constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path2.join)((0, import_os.homedir)(), ".agentdeck")) {
     this.dir = dir;
     (0, import_fs3.mkdirSync)(dir, { recursive: true, mode: 448 });
+    (0, import_fs3.chmodSync)(dir, 448);
     this.hostFile = (0, import_path2.join)(dir, "host.json");
     this.devicesFile = (0, import_path2.join)(dir, "devices.json");
     const saved = this.read(this.hostFile);
@@ -11638,6 +11656,9 @@ var wrapper_default = import_websocket.default;
 // src/live/session.ts
 var import_tweetnacl2 = __toESM(require_nacl_fast());
 var MAX_FRAME = 20 * 1024 * 1024;
+var MAX_PREAUTH_FRAME = 16 * 1024;
+var HANDSHAKE_TIMEOUT_MS = 1e4;
+var LAST_SEEN_WRITE_MS = 5 * 60 * 1e3;
 var MAX_PAIR_FAILURES = 20;
 var PairingManager = class {
   constructor(ttlMs = 10 * 60 * 1e3) {
@@ -11674,11 +11695,17 @@ var PhoneSession = class {
     this.store = store;
     this.pairing = pairing;
     this.hostUrls = hostUrls;
+    this.handshakeTimer = setTimeout(() => {
+      if (!this.key) this.fail("timeout", "Handshake timed out");
+    }, HANDSHAKE_TIMEOUT_MS);
   }
   deviceId = null;
   key = null;
   challenge = "";
   lastSeq = 0;
+  hostSeq = 0;
+  greeted = false;
+  handshakeTimer;
   subscriptions = /* @__PURE__ */ new Set();
   closed = false;
   onConversations = (list) => this.push("conversations", list);
@@ -11686,7 +11713,9 @@ var PhoneSession = class {
     if (this.subscriptions.has(p.id)) this.push("items", p);
   };
   onRevoked = (deviceId) => {
-    if (deviceId === this.deviceId) this.link.close(4003, "revoked");
+    if (deviceId !== this.deviceId) return;
+    this.push("revoked", {});
+    this.link.close(4003, "revoked");
   };
   get authenticatedDevice() {
     return this.key ? this.deviceId : null;
@@ -11696,7 +11725,7 @@ var PhoneSession = class {
   }
   sendSealed(msg) {
     if (!this.key) return;
-    const box = seal(this.key, msg);
+    const box = seal(this.key, { ...msg, s: this.challenge, hq: ++this.hostSeq });
     this.sendFrame({ t: "s", n: box.n, c: box.c });
   }
   push(e, p) {
@@ -11708,7 +11737,7 @@ var PhoneSession = class {
   }
   handle(text) {
     if (this.closed) return;
-    if (text.length > MAX_FRAME) return this.fail("too_large", "Frame too large", 1009);
+    if (text.length > (this.key ? MAX_FRAME : MAX_PREAUTH_FRAME)) return this.fail("too_large", "Frame too large", 1009);
     let frame;
     try {
       frame = JSON.parse(text);
@@ -11730,11 +11759,14 @@ var PhoneSession = class {
     const key = this.pairing.key();
     if (!key) return this.fail("pairing_closed", "Pairing is not open on the Mac. Open AgentDeck on your Mac and show the QR code again.");
     const req = open(key, frame);
-    if (!req || typeof req.deviceId !== "string" || req.deviceId.length < 8) {
+    if (!req || typeof req.deviceId !== "string" || req.deviceId.length < 8 || typeof req.eph !== "string") {
       this.pairing.recordFailure();
       return this.fail("bad_code", "That pairing code is wrong or expired.");
     }
-    const sessionKey = newSessionKey();
+    const phoneEph = fromBase64(req.eph);
+    if (phoneEph.length !== 32) return this.fail("bad_frame", "Bad pairing request");
+    const mine = newEphemeralKeyPair();
+    const sessionKey = deriveSessionKey(mine.secretKey, phoneEph, key);
     this.store.upsertDevice({
       deviceId: req.deviceId,
       name: String(req.deviceName || "Phone").slice(0, 60),
@@ -11745,7 +11777,7 @@ var PhoneSession = class {
     this.pairing.close();
     const res = {
       ok: true,
-      sessionKey: toBase64(sessionKey),
+      eph: toBase64(mine.publicKey),
       hostId: this.store.config.hostId,
       hostName: this.store.config.hostName,
       urls: this.hostUrls(),
@@ -11755,6 +11787,8 @@ var PhoneSession = class {
     this.sendFrame({ t: "paired", n: box.n, c: box.c });
   }
   handleHello(frame) {
+    if (this.greeted) return this.fail("bad_frame", "Already greeted");
+    this.greeted = true;
     if (frame.v !== WIRE_VERSION) return this.fail("version", "Please update AgentDeck on your phone or Mac.");
     const device = typeof frame.d === "string" ? this.store.getDevice(frame.d) : void 0;
     if (!device) return this.fail("unpaired", "This phone is not paired with this Mac (or was removed).", 4003);
@@ -11762,7 +11796,11 @@ var PhoneSession = class {
     this.key = fromBase64(device.key);
     this.challenge = toBase64(import_tweetnacl2.default.randomBytes(18));
     this.lastSeq = 0;
-    this.store.updateDevice(device.deviceId, { lastSeen: (/* @__PURE__ */ new Date()).toISOString() });
+    this.hostSeq = 0;
+    clearTimeout(this.handshakeTimer);
+    if (!device.lastSeen || Date.now() - Date.parse(device.lastSeen) > LAST_SEEN_WRITE_MS) {
+      this.store.updateDevice(device.deviceId, { lastSeen: (/* @__PURE__ */ new Date()).toISOString() });
+    }
     this.service.on("conversations", this.onConversations);
     this.service.on("items", this.onItems);
     this.service.on("revoked", this.onRevoked);
@@ -11790,6 +11828,7 @@ var PhoneSession = class {
   dispose() {
     if (this.closed) return;
     this.closed = true;
+    clearTimeout(this.handshakeTimer);
     for (const id of this.subscriptions) this.service.close(id);
     this.subscriptions.clear();
     this.service.off("conversations", this.onConversations);
@@ -11842,6 +11881,12 @@ var RelayLink = class {
         return;
       }
       if (f.o === "open") {
+        this.streams.get(f.c)?.onClose();
+        this.streams.delete(f.c);
+        if (this.streams.size >= 32) {
+          ws.send(JSON.stringify({ o: "close", c: f.c }));
+          return;
+        }
         const link = {
           remote: `relay:${f.ip ?? "?"}`,
           send: (text) => ws.readyState === wrapper_default.OPEN && ws.send(JSON.stringify({ o: "msg", c: f.c, d: text })),
@@ -11860,7 +11905,7 @@ var RelayLink = class {
       }
     });
     ws.on("error", (e) => {
-      this.lastError = e.message;
+      this.lastError = /403|401/.test(e.message) ? "Relay rejected this host (its id is registered to another computer)" : e.message;
     });
     ws.on("close", (code, reason) => {
       clearInterval(ping);
@@ -11904,7 +11949,7 @@ code{font:13px ui-monospace,Menlo,monospace}.code{font:600 22px ui-monospace,Men
 <div class="row"><input id="relay" placeholder="wss://relay.example.com"><button id="relayBtn">Save</button></div><div id="relayStatus" class="muted"></div></div>
 </main><script>
 const $=id=>document.getElementById(id);
-const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
+const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json','X-AgentDeck':'1'},body:JSON.stringify(b||{})}).then(r=>r.json());
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let timer;
 async function refresh(){
@@ -11947,6 +11992,15 @@ function isLocalRequest(req) {
   const host = (req.headers.host ?? "").replace(/:\d+$/, "");
   return local && (host === "localhost" || host === "127.0.0.1" || host === "[::1]");
 }
+function isTrustedLocalAction(req, port) {
+  const type = String(req.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
+  if (type !== "application/json") return false;
+  if (req.headers["x-agentdeck"] !== "1") return false;
+  const origin = req.headers["origin"];
+  if (origin === void 0) return true;
+  return origin === `http://localhost:${port}` || origin === `http://127.0.0.1:${port}`;
+}
+var MAX_UNAUTHENTICATED = 64;
 function json(res, status2, body) {
   res.writeHead(status2, { "Content-Type": "application/json", "Cache-Control": "no-store" });
   res.end(JSON.stringify(body));
@@ -12026,13 +12080,18 @@ var HostServer = class {
   async handleHttp(req, res) {
     const url = new URL(req.url ?? "/", "http://localhost");
     if (url.pathname === "/api/health") {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      return json(res, 200, { ok: true, app: "agentdeck", hostId: this.store.config.hostId, hostName: this.store.config.hostName, version: HOST_VERSION, wire: WIRE_VERSION });
+      if (process.env["AGENTDECK_DEV_CORS"] === "1") res.setHeader("Access-Control-Allow-Origin", "*");
+      return json(res, 200, { ok: true, app: "agentdeck", hostName: this.store.config.hostName, version: HOST_VERSION, wire: WIRE_VERSION });
     }
     if (!isLocalRequest(req)) return json(res, 404, { error: "Not found" });
     try {
       if (req.method === "GET" && url.pathname === "/") {
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:" });
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+          "X-Frame-Options": "DENY",
+          "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'"
+        });
         return void res.end(dashboardHtml());
       }
       if (req.method === "GET" && url.pathname === "/local/status") {
@@ -12047,9 +12106,7 @@ var HostServer = class {
           conversations: (await this.service.conversations().catch(() => [])).length
         });
       }
-      if (req.method === "POST" && !(req.headers["content-type"] ?? "").includes("application/json")) {
-        return json(res, 415, { error: "JSON required" });
-      }
+      if (req.method === "POST" && !isTrustedLocalAction(req, this.port)) return json(res, 403, { error: "Forbidden" });
       if (req.method === "POST" && url.pathname === "/local/pair") return json(res, 200, await this.pairingPayload());
       if (req.method === "POST" && url.pathname === "/local/pair/close") {
         this.pairing.close();
@@ -12064,7 +12121,8 @@ var HostServer = class {
       if (req.method === "POST" && url.pathname === "/local/relay") {
         const body = await readBody(req);
         const relayUrl = typeof body.url === "string" ? body.url.trim() : "";
-        if (relayUrl && !/^wss?:\/\/[^\s]+$/.test(relayUrl)) return json(res, 400, { error: "Relay URL must start with wss://" });
+        const devRelay = /^ws:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(relayUrl);
+        if (relayUrl && !devRelay && !/^wss:\/\/[^\s]+$/.test(relayUrl)) return json(res, 400, { error: "Relay URL must start with wss://" });
         this.setRelay(relayUrl || null);
         return json(res, 200, { ok: true, relay: this.relayStatus() });
       }
@@ -12094,6 +12152,10 @@ var HostServer = class {
     return this.port;
   }
   onSocket(ws, req) {
+    if ([...this.sessions].filter((s2) => !s2.authenticatedDevice).length >= MAX_UNAUTHENTICATED) {
+      ws.close(1013, "busy");
+      return;
+    }
     const link = {
       remote: req.socket.remoteAddress ?? "?",
       send: (text) => ws.readyState === import_websocket.default.OPEN && ws.send(text),
@@ -12144,7 +12206,7 @@ function localCall(method, path, body) {
   return new Promise((resolvePromise, reject) => {
     const payload = body === void 0 ? "" : JSON.stringify(body);
     const req = (0, import_http3.request)(
-      { host: "127.0.0.1", port: PORT, path, method, headers: { Host: "localhost", "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } },
+      { host: "127.0.0.1", port: PORT, path, method, headers: { Host: "localhost", "Content-Type": "application/json", "X-AgentDeck": "1", "Content-Length": Buffer.byteLength(payload) } },
       (res) => {
         let data = "";
         res.on("data", (c) => data += c);
@@ -12176,7 +12238,7 @@ async function start() {
   console.log(`  Antigravity: ${info.antigravity.connected ? `connected (${info.antigravity.servers} window(s))` : info.antigravity.error}`);
   console.log(`  Paired:      ${store.listDevices().length} phone(s)`);
   if (store.config.relayUrl) console.log(`  Relay:       ${store.config.relayUrl}`);
-  if (!store.listDevices().length) {
+  if (!store.listDevices().length && process.stdout.isTTY) {
     const p = await server.pairingPayload();
     console.log("\nNo phone paired yet. Scan this with the AgentDeck app (expires in 10 minutes):\n");
     console.log(await import_qrcode2.default.toString(p.qr, { type: "terminal", small: true }));
@@ -12208,7 +12270,8 @@ function entryCommand() {
 function install() {
   const { node, script } = entryCommand();
   const logDir = (0, import_path3.join)((0, import_os3.homedir)(), ".agentdeck");
-  (0, import_fs4.mkdirSync)(logDir, { recursive: true });
+  (0, import_fs4.mkdirSync)(logDir, { recursive: true, mode: 448 });
+  (0, import_fs4.chmodSync)(logDir, 448);
   if (process.platform === "darwin") {
     const plist = (0, import_path3.join)((0, import_os3.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
     (0, import_fs4.mkdirSync)((0, import_path3.join)((0, import_os3.homedir)(), "Library/LaunchAgents"), { recursive: true });
