@@ -11135,10 +11135,11 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.1.0";
+var HOST_VERSION = "1.1.1";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var POLL_MS = 1500;
+var TRACKER_IDLE_MS = Number(process.env["AGENTDECK_TRACKER_IDLE_MS"] || 10 * 60 * 1e3);
 var RpcError = class extends Error {
 };
 function summaryToDto(id, s, pending) {
@@ -11217,7 +11218,16 @@ var AgentDeckService = class extends import_events.EventEmitter {
           void this.notify("Agent finished", "Your task is done. Open AgentDeck to see the result.", id);
         }
       }
+      this.evictIdleTrackers();
       this.publishList();
+    }
+  }
+  evictIdleTrackers() {
+    const now = Date.now();
+    for (const [id, t] of this.trackers) {
+      const status2 = runStatus(this.summaries.get(id)?.status);
+      if (t.subscribers > 0 || status2 === "running" || status2 === "busy") t.lastActive = now;
+      else if (now - t.lastActive > TRACKER_IDLE_MS || !this.summaries.has(id)) this.trackers.delete(id);
     }
   }
   createTracker(id, from) {
@@ -11229,7 +11239,8 @@ var AgentDeckService = class extends import_events.EventEmitter {
       raw: /* @__PURE__ */ new Map(),
       firstLoaded: from,
       subscribers: 0,
-      notifiedApprovals: /* @__PURE__ */ new Set()
+      notifiedApprovals: /* @__PURE__ */ new Set(),
+      lastActive: Date.now()
     };
     this.trackers.set(id, t);
     return t;
