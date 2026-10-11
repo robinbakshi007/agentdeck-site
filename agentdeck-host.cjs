@@ -4562,7 +4562,7 @@ var require_lib = __commonJS({
 // ../../node_modules/.pnpm/tweetnacl@1.0.3/node_modules/tweetnacl/nacl-fast.js
 var require_nacl_fast = __commonJS({
   "../../node_modules/.pnpm/tweetnacl@1.0.3/node_modules/tweetnacl/nacl-fast.js"(exports2, module2) {
-    (function(nacl3) {
+    (function(nacl4) {
       "use strict";
       var gf = function(init) {
         var i, r = new Float64Array(16);
@@ -6521,7 +6521,7 @@ var require_nacl_fast = __commonJS({
         return n;
       }
       var crypto_secretbox_KEYBYTES = 32, crypto_secretbox_NONCEBYTES = 24, crypto_secretbox_ZEROBYTES = 32, crypto_secretbox_BOXZEROBYTES = 16, crypto_scalarmult_BYTES = 32, crypto_scalarmult_SCALARBYTES = 32, crypto_box_PUBLICKEYBYTES = 32, crypto_box_SECRETKEYBYTES = 32, crypto_box_BEFORENMBYTES = 32, crypto_box_NONCEBYTES = crypto_secretbox_NONCEBYTES, crypto_box_ZEROBYTES = crypto_secretbox_ZEROBYTES, crypto_box_BOXZEROBYTES = crypto_secretbox_BOXZEROBYTES, crypto_sign_BYTES = 64, crypto_sign_PUBLICKEYBYTES = 32, crypto_sign_SECRETKEYBYTES = 64, crypto_sign_SEEDBYTES = 32, crypto_hash_BYTES = 64;
-      nacl3.lowlevel = {
+      nacl4.lowlevel = {
         crypto_core_hsalsa20,
         crypto_stream_xor,
         crypto_stream,
@@ -6594,12 +6594,12 @@ var require_nacl_fast = __commonJS({
       function cleanup(arr) {
         for (var i = 0; i < arr.length; i++) arr[i] = 0;
       }
-      nacl3.randomBytes = function(n) {
+      nacl4.randomBytes = function(n) {
         var b = new Uint8Array(n);
         randombytes(b, n);
         return b;
       };
-      nacl3.secretbox = function(msg, nonce, key) {
+      nacl4.secretbox = function(msg, nonce, key) {
         checkArrayTypes(msg, nonce, key);
         checkLengths(key, nonce);
         var m = new Uint8Array(crypto_secretbox_ZEROBYTES + msg.length);
@@ -6608,7 +6608,7 @@ var require_nacl_fast = __commonJS({
         crypto_secretbox(c, m, m.length, nonce, key);
         return c.subarray(crypto_secretbox_BOXZEROBYTES);
       };
-      nacl3.secretbox.open = function(box, nonce, key) {
+      nacl4.secretbox.open = function(box, nonce, key) {
         checkArrayTypes(box, nonce, key);
         checkLengths(key, nonce);
         var c = new Uint8Array(crypto_secretbox_BOXZEROBYTES + box.length);
@@ -6618,10 +6618,10 @@ var require_nacl_fast = __commonJS({
         if (crypto_secretbox_open(m, c, c.length, nonce, key) !== 0) return null;
         return m.subarray(crypto_secretbox_ZEROBYTES);
       };
-      nacl3.secretbox.keyLength = crypto_secretbox_KEYBYTES;
-      nacl3.secretbox.nonceLength = crypto_secretbox_NONCEBYTES;
-      nacl3.secretbox.overheadLength = crypto_secretbox_BOXZEROBYTES;
-      nacl3.scalarMult = function(n, p) {
+      nacl4.secretbox.keyLength = crypto_secretbox_KEYBYTES;
+      nacl4.secretbox.nonceLength = crypto_secretbox_NONCEBYTES;
+      nacl4.secretbox.overheadLength = crypto_secretbox_BOXZEROBYTES;
+      nacl4.scalarMult = function(n, p) {
         checkArrayTypes(n, p);
         if (n.length !== crypto_scalarmult_SCALARBYTES) throw new Error("bad n size");
         if (p.length !== crypto_scalarmult_BYTES) throw new Error("bad p size");
@@ -6629,39 +6629,39 @@ var require_nacl_fast = __commonJS({
         crypto_scalarmult(q, n, p);
         return q;
       };
-      nacl3.scalarMult.base = function(n) {
+      nacl4.scalarMult.base = function(n) {
         checkArrayTypes(n);
         if (n.length !== crypto_scalarmult_SCALARBYTES) throw new Error("bad n size");
         var q = new Uint8Array(crypto_scalarmult_BYTES);
         crypto_scalarmult_base(q, n);
         return q;
       };
-      nacl3.scalarMult.scalarLength = crypto_scalarmult_SCALARBYTES;
-      nacl3.scalarMult.groupElementLength = crypto_scalarmult_BYTES;
-      nacl3.box = function(msg, nonce, publicKey, secretKey) {
-        var k = nacl3.box.before(publicKey, secretKey);
-        return nacl3.secretbox(msg, nonce, k);
+      nacl4.scalarMult.scalarLength = crypto_scalarmult_SCALARBYTES;
+      nacl4.scalarMult.groupElementLength = crypto_scalarmult_BYTES;
+      nacl4.box = function(msg, nonce, publicKey, secretKey) {
+        var k = nacl4.box.before(publicKey, secretKey);
+        return nacl4.secretbox(msg, nonce, k);
       };
-      nacl3.box.before = function(publicKey, secretKey) {
+      nacl4.box.before = function(publicKey, secretKey) {
         checkArrayTypes(publicKey, secretKey);
         checkBoxLengths(publicKey, secretKey);
         var k = new Uint8Array(crypto_box_BEFORENMBYTES);
         crypto_box_beforenm(k, publicKey, secretKey);
         return k;
       };
-      nacl3.box.after = nacl3.secretbox;
-      nacl3.box.open = function(msg, nonce, publicKey, secretKey) {
-        var k = nacl3.box.before(publicKey, secretKey);
-        return nacl3.secretbox.open(msg, nonce, k);
+      nacl4.box.after = nacl4.secretbox;
+      nacl4.box.open = function(msg, nonce, publicKey, secretKey) {
+        var k = nacl4.box.before(publicKey, secretKey);
+        return nacl4.secretbox.open(msg, nonce, k);
       };
-      nacl3.box.open.after = nacl3.secretbox.open;
-      nacl3.box.keyPair = function() {
+      nacl4.box.open.after = nacl4.secretbox.open;
+      nacl4.box.keyPair = function() {
         var pk = new Uint8Array(crypto_box_PUBLICKEYBYTES);
         var sk = new Uint8Array(crypto_box_SECRETKEYBYTES);
         crypto_box_keypair(pk, sk);
         return { publicKey: pk, secretKey: sk };
       };
-      nacl3.box.keyPair.fromSecretKey = function(secretKey) {
+      nacl4.box.keyPair.fromSecretKey = function(secretKey) {
         checkArrayTypes(secretKey);
         if (secretKey.length !== crypto_box_SECRETKEYBYTES)
           throw new Error("bad secret key size");
@@ -6669,12 +6669,12 @@ var require_nacl_fast = __commonJS({
         crypto_scalarmult_base(pk, secretKey);
         return { publicKey: pk, secretKey: new Uint8Array(secretKey) };
       };
-      nacl3.box.publicKeyLength = crypto_box_PUBLICKEYBYTES;
-      nacl3.box.secretKeyLength = crypto_box_SECRETKEYBYTES;
-      nacl3.box.sharedKeyLength = crypto_box_BEFORENMBYTES;
-      nacl3.box.nonceLength = crypto_box_NONCEBYTES;
-      nacl3.box.overheadLength = nacl3.secretbox.overheadLength;
-      nacl3.sign = function(msg, secretKey) {
+      nacl4.box.publicKeyLength = crypto_box_PUBLICKEYBYTES;
+      nacl4.box.secretKeyLength = crypto_box_SECRETKEYBYTES;
+      nacl4.box.sharedKeyLength = crypto_box_BEFORENMBYTES;
+      nacl4.box.nonceLength = crypto_box_NONCEBYTES;
+      nacl4.box.overheadLength = nacl4.secretbox.overheadLength;
+      nacl4.sign = function(msg, secretKey) {
         checkArrayTypes(msg, secretKey);
         if (secretKey.length !== crypto_sign_SECRETKEYBYTES)
           throw new Error("bad secret key size");
@@ -6682,7 +6682,7 @@ var require_nacl_fast = __commonJS({
         crypto_sign(signedMsg, msg, msg.length, secretKey);
         return signedMsg;
       };
-      nacl3.sign.open = function(signedMsg, publicKey) {
+      nacl4.sign.open = function(signedMsg, publicKey) {
         checkArrayTypes(signedMsg, publicKey);
         if (publicKey.length !== crypto_sign_PUBLICKEYBYTES)
           throw new Error("bad public key size");
@@ -6693,13 +6693,13 @@ var require_nacl_fast = __commonJS({
         for (var i = 0; i < m.length; i++) m[i] = tmp[i];
         return m;
       };
-      nacl3.sign.detached = function(msg, secretKey) {
-        var signedMsg = nacl3.sign(msg, secretKey);
+      nacl4.sign.detached = function(msg, secretKey) {
+        var signedMsg = nacl4.sign(msg, secretKey);
         var sig = new Uint8Array(crypto_sign_BYTES);
         for (var i = 0; i < sig.length; i++) sig[i] = signedMsg[i];
         return sig;
       };
-      nacl3.sign.detached.verify = function(msg, sig, publicKey) {
+      nacl4.sign.detached.verify = function(msg, sig, publicKey) {
         checkArrayTypes(msg, sig, publicKey);
         if (sig.length !== crypto_sign_BYTES)
           throw new Error("bad signature size");
@@ -6712,13 +6712,13 @@ var require_nacl_fast = __commonJS({
         for (i = 0; i < msg.length; i++) sm[i + crypto_sign_BYTES] = msg[i];
         return crypto_sign_open(m, sm, sm.length, publicKey) >= 0;
       };
-      nacl3.sign.keyPair = function() {
+      nacl4.sign.keyPair = function() {
         var pk = new Uint8Array(crypto_sign_PUBLICKEYBYTES);
         var sk = new Uint8Array(crypto_sign_SECRETKEYBYTES);
         crypto_sign_keypair(pk, sk);
         return { publicKey: pk, secretKey: sk };
       };
-      nacl3.sign.keyPair.fromSecretKey = function(secretKey) {
+      nacl4.sign.keyPair.fromSecretKey = function(secretKey) {
         checkArrayTypes(secretKey);
         if (secretKey.length !== crypto_sign_SECRETKEYBYTES)
           throw new Error("bad secret key size");
@@ -6726,7 +6726,7 @@ var require_nacl_fast = __commonJS({
         for (var i = 0; i < pk.length; i++) pk[i] = secretKey[32 + i];
         return { publicKey: pk, secretKey: new Uint8Array(secretKey) };
       };
-      nacl3.sign.keyPair.fromSeed = function(seed) {
+      nacl4.sign.keyPair.fromSeed = function(seed) {
         checkArrayTypes(seed);
         if (seed.length !== crypto_sign_SEEDBYTES)
           throw new Error("bad seed size");
@@ -6736,31 +6736,31 @@ var require_nacl_fast = __commonJS({
         crypto_sign_keypair(pk, sk, true);
         return { publicKey: pk, secretKey: sk };
       };
-      nacl3.sign.publicKeyLength = crypto_sign_PUBLICKEYBYTES;
-      nacl3.sign.secretKeyLength = crypto_sign_SECRETKEYBYTES;
-      nacl3.sign.seedLength = crypto_sign_SEEDBYTES;
-      nacl3.sign.signatureLength = crypto_sign_BYTES;
-      nacl3.hash = function(msg) {
+      nacl4.sign.publicKeyLength = crypto_sign_PUBLICKEYBYTES;
+      nacl4.sign.secretKeyLength = crypto_sign_SECRETKEYBYTES;
+      nacl4.sign.seedLength = crypto_sign_SEEDBYTES;
+      nacl4.sign.signatureLength = crypto_sign_BYTES;
+      nacl4.hash = function(msg) {
         checkArrayTypes(msg);
         var h = new Uint8Array(crypto_hash_BYTES);
         crypto_hash(h, msg, msg.length);
         return h;
       };
-      nacl3.hash.hashLength = crypto_hash_BYTES;
-      nacl3.verify = function(x, y) {
+      nacl4.hash.hashLength = crypto_hash_BYTES;
+      nacl4.verify = function(x, y) {
         checkArrayTypes(x, y);
         if (x.length === 0 || y.length === 0) return false;
         if (x.length !== y.length) return false;
         return vn(x, 0, y, 0, x.length) === 0 ? true : false;
       };
-      nacl3.setPRNG = function(fn) {
+      nacl4.setPRNG = function(fn) {
         randombytes = fn;
       };
       (function() {
         var crypto = typeof self !== "undefined" ? self.crypto || self.msCrypto : null;
         if (crypto && crypto.getRandomValues) {
           var QUOTA = 65536;
-          nacl3.setPRNG(function(x, n) {
+          nacl4.setPRNG(function(x, n) {
             var i, v = new Uint8Array(n);
             for (i = 0; i < n; i += QUOTA) {
               crypto.getRandomValues(v.subarray(i, i + Math.min(n - i, QUOTA)));
@@ -6771,7 +6771,7 @@ var require_nacl_fast = __commonJS({
         } else if (typeof require !== "undefined") {
           crypto = require("crypto");
           if (crypto && crypto.randomBytes) {
-            nacl3.setPRNG(function(x, n) {
+            nacl4.setPRNG(function(x, n) {
               var i, v = crypto.randomBytes(n);
               for (i = 0; i < n; i++) x[i] = v[i];
               cleanup(v);
@@ -11112,7 +11112,7 @@ async function fileDiff(cwd, file) {
 var import_https = require("https");
 var expoPushSender = (messages) => new Promise((resolve2) => {
   if (!messages.length) return resolve2();
-  const body = JSON.stringify(messages.map((m) => ({ ...m, sound: "default", priority: "high" })));
+  const body = JSON.stringify(messages.map((m) => ({ ...m, sound: "default", priority: "high", channelId: "agent" })));
   const req = (0, import_https.request)(
     {
       host: "exp.host",
@@ -11159,11 +11159,12 @@ function summaryToDto(id, s, pending) {
   };
 }
 var AgentDeckService = class extends import_events.EventEmitter {
-  constructor(bridge, store, push) {
+  constructor(bridge, store, push, license = null) {
     super();
     this.bridge = bridge;
     this.store = store;
     this.push = push;
+    this.license = license;
   }
   summaries = /* @__PURE__ */ new Map();
   list = [];
@@ -11292,7 +11293,8 @@ var AgentDeckService = class extends import_events.EventEmitter {
         servers: this.bridge.serverCount,
         error: this.bridge.lastError ?? void 0
       },
-      platform: process.platform
+      platform: process.platform,
+      license: this.license ? (({ required, active, status: status2, renewsAt, message }) => ({ required, active, status: status2, renewsAt, message }))(this.license.state()) : void 0
     };
   }
   async conversations() {
@@ -11456,6 +11458,11 @@ var AgentDeckService = class extends import_events.EventEmitter {
   /** Dispatches one RPC. `deviceId` is the authenticated caller. */
   async dispatch(deviceId, method, p, ctx) {
     try {
+      const FREE = ["host.info", "devices.list", "devices.revoke", "push.register"];
+      if (this.license && !FREE.includes(method)) {
+        const l = this.license.state();
+        if (!l.active) throw new RpcError(`LICENSE_REQUIRED: ${l.message} Open the AgentDeck dashboard on your Mac to activate.`);
+      }
       switch (method) {
         case "host.info":
           return await this.hostInfo();
@@ -11985,6 +11992,9 @@ code{font:13px ui-monospace,Menlo,monospace}.code{font:600 22px ui-monospace,Men
 </style></head><body><main>
 <h1>AgentDeck Host</h1><p class="sub">Control Antigravity from your phone. This page is only reachable from this Mac.</p>
 <div class="card"><h2>Status</h2><div id="status" class="muted">Loading\u2026</div><div id="compat" class="muted" style="margin-top:8px"></div></div>
+<div class="card"><h2>AgentDeck Pro license</h2><div id="lic" class="muted">Checking\u2026</div>
+<div class="row"><input id="licKey" placeholder="ADK-XXXX-XXXX-XXXX-XXXX" autocomplete="off"><button id="licBtn">Activate</button></div>
+<div id="licLinks" class="muted"><a href="https://agentdeck.finnova.com.au/pricing" target="_blank" rel="noopener">Buy a license</a></div></div>
 <div class="card"><h2>Pair a phone</h2>
 <p class="muted">Open AgentDeck on your phone, tap <b>Pair with Mac</b>, and scan this code. Codes expire after 10 minutes and work once.</p>
 <div id="pair"><button id="pairBtn">Show pairing code</button></div></div>
@@ -12008,6 +12018,9 @@ async function refresh(){
   $('devices').innerHTML=s.devices.length?s.devices.map(d=>'<div class="row"><span><b>'+esc(d.name)+'</b> <span class="muted">'+esc(d.platform)+' \xB7 paired '+esc(new Date(d.pairedAt).toLocaleDateString())+(d.lastSeen?' \xB7 seen '+esc(new Date(d.lastSeen).toLocaleString()):'')+(d.push?' \xB7 notifications on':'')+'</span></span><button class="ghost" data-id="'+esc(d.deviceId)+'">Remove</button></div>').join(''):'None yet.';
   document.querySelectorAll('#devices button').forEach(b=>b.onclick=async()=>{if(confirm('Remove this phone? It will need to pair again.')){await post('/local/devices/revoke',{deviceId:b.dataset.id});refresh();}});
   if($('qr')&&!s.pairing.active){clearInterval(timer);$('pair').innerHTML='<p><b>Phone paired.</b> <button id="pairBtn3">Pair another</button></p>';$('pairBtn3').onclick=$('pairBtn').onclick;}
+  const L=s.license;
+  if(L){$('lic').innerHTML='<span class="dot" style="background:'+(L.active&&L.status!=='none'?'var(--ok)':L.required?'var(--bad)':'var(--muted)')+'"></span>'+esc(L.required||L.key?L.message:'Free while AgentDeck sales are not open yet.')+(L.renewsAt?' Renews '+esc(new Date(L.renewsAt).toLocaleDateString())+'.':'')+(L.email?' ('+esc(L.email)+')':'');
+    $('licLinks').innerHTML=(L.portalUrl?'<a href="'+esc(L.portalUrl)+'" target="_blank" rel="noopener">Manage billing, invoices or cancel</a> \xB7 ':'')+'<a href="https://agentdeck.finnova.com.au/pricing" target="_blank" rel="noopener">'+(L.key?'Pricing':'Buy a license')+'</a>';}
   if(document.activeElement!==$('relay'))$('relay').value=s.relay.url||'';
   $('relayStatus').textContent=s.relay.url?('Relay: '+s.relay.status+(s.relay.error?' \u2014 '+s.relay.error:'')):'Remote access is off.';
 }
@@ -12016,6 +12029,7 @@ $('pairBtn').onclick=async()=>{
   $('pair').innerHTML='<div id="qr">'+p.svg+'</div><div class="code">'+esc(p.code)+'</div><p class="muted" style="text-align:center">Or type this code in the app. <span id="left"></span></p>';
   clearInterval(timer);timer=setInterval(()=>{const s=Math.max(0,Math.round((p.expiresAt-Date.now())/1000));$('left').textContent='Expires in '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');if(!s){clearInterval(timer);$('pair').innerHTML='<button id="pairBtn2">Show a new code</button>';$('pairBtn2').onclick=$('pairBtn').onclick;}},1000);
 };
+$('licBtn').onclick=async()=>{const r=await post('/local/license',{key:$('licKey').value});if(r.error)alert(r.error);else{$('licKey').value='';}refresh();};
 $('relayBtn').onclick=async()=>{const r=await post('/local/relay',{url:$('relay').value});if(r.error)alert(r.error);refresh();};
 fetch('/local/compat').then(r=>r.json()).then(c=>{$('compat').innerHTML=c.ok?'<span class="dot" style="background:var(--ok)"></span>Antigravity compatibility check passed':'<b style="color:var(--bad)">Antigravity changed in a way AgentDeck does not support yet:</b><br>'+c.checks.filter(x=>!x.ok).map(x=>esc(x.name+': '+x.detail)).join('<br>')+'<br>Update AgentDeck or contact support.';}).catch(()=>{});
 refresh();setInterval(refresh,4000);
@@ -12227,12 +12241,22 @@ var HostServer = class {
           relay: this.relayStatus(),
           pairing: { active: this.pairing.active, expiresAt: this.pairing.expiresAt },
           devices: this.store.listDevices().map(({ key: _k, pushToken, ...d }) => ({ ...d, push: !!pushToken })),
+          license: this.service.license ? { ...this.service.license.state(), portalUrl: this.service.license.portalUrl() } : null,
           connectedPhones: [...this.sessions].filter((s) => s.authenticatedDevice).length,
           conversations: (await this.service.conversations().catch(() => [])).length
         });
       }
       if (req.method === "POST" && !isTrustedLocalAction(req, this.port)) return json(res, 403, { error: "Forbidden" });
       if (req.method === "POST" && url.pathname === "/local/pair") return json(res, 200, await this.pairingPayload());
+      if (req.method === "POST" && url.pathname === "/local/license") {
+        const body = await readBody(req);
+        if (!this.service.license) return json(res, 400, { error: "Licensing is not enabled" });
+        try {
+          return json(res, 200, await this.service.license.activate(String(body.key ?? "")));
+        } catch (e) {
+          return json(res, 400, { error: e.message });
+        }
+      }
       if (req.method === "POST" && url.pathname === "/local/pair/close") {
         this.pairing.close();
         return json(res, 200, { ok: true });
@@ -12360,6 +12384,114 @@ function reportCrash(error, version, fatal) {
   });
 }
 
+// src/live/license.ts
+var import_tweetnacl3 = __toESM(require_nacl_fast());
+var BILLING_URL = process.env["AGENTDECK_BILLING_URL"] || "https://agentdeck-billing.finnova.com.au";
+var PRICING_URL = "https://agentdeck.finnova.com.au/pricing";
+var LICENSE_PUBLIC_KEY = process.env["AGENTDECK_LICENSE_PUBLIC_KEY"] || "Gc8uSIbd/Xm19SF9W2dzfwuMC++bsmQ8+RhAq5wQtyk=";
+var REFRESH_MS = 12 * 3600 * 1e3;
+var OFFLINE_GRACE_MS = 14 * 86400 * 1e3;
+var PAST_DUE_GRACE_MS = 7 * 86400 * 1e3;
+var LicenseManager = class {
+  constructor(store, opts = {}) {
+    this.store = store;
+    this.opts = opts;
+  }
+  timer = null;
+  get f() {
+    return this.opts.fetch ?? fetch;
+  }
+  get url() {
+    return this.opts.billingUrl ?? BILLING_URL;
+  }
+  now() {
+    return this.opts.now?.() ?? Date.now();
+  }
+  get cache() {
+    return this.store.config.license ?? {};
+  }
+  save(patch) {
+    this.store.saveConfig({ license: { ...this.cache, ...patch } });
+  }
+  /** Verified statement for this host, or null if missing/forged/for another host. */
+  statement() {
+    const c = this.cache;
+    if (!c.payload || !c.signature) return null;
+    const pub = fromBase64(this.opts.publicKey ?? LICENSE_PUBLIC_KEY);
+    if (!import_tweetnacl3.default.sign.detached.verify(utf8Encode(c.payload), fromBase64(c.signature), pub)) return null;
+    try {
+      const s = JSON.parse(c.payload);
+      return s.hostId === this.store.config.hostId && s.key === c.key ? s : null;
+    } catch {
+      return null;
+    }
+  }
+  state() {
+    const required = process.env["AGENTDECK_LICENSE"] !== "off" && !!this.cache.enforced;
+    const s = this.statement();
+    const key = this.cache.key ?? null;
+    const age = s ? this.now() - Date.parse(s.issuedAt) : Infinity;
+    const renewsAt = s?.currentPeriodEnd ? new Date(s.currentPeriodEnd * 1e3).toISOString() : null;
+    let active = false;
+    let message = "";
+    if (!s) {
+      message = key ? "This license key could not be verified yet." : "No license on this computer yet.";
+    } else if ((s.status === "active" || s.status === "trialing") && age < OFFLINE_GRACE_MS) {
+      active = true;
+      message = "AgentDeck Pro is active.";
+    } else if (s.status === "past_due" && age < PAST_DUE_GRACE_MS) {
+      active = true;
+      message = "Your last payment failed. Update your card to keep AgentDeck working.";
+    } else if (s.status === "too_many_hosts") {
+      message = "This license is already used on 3 computers.";
+    } else if (s.status === "canceled") {
+      message = "This subscription has ended.";
+    } else if (s.status === "invalid") {
+      message = "This license key is not valid.";
+    } else {
+      message = "The license could not be checked for a while. Connect this computer to the internet.";
+    }
+    return { required, active: active || !required, status: s?.status ?? (key ? "offline" : "none"), key, email: s?.email ?? null, renewsAt, message };
+  }
+  /** Checks a key with the billing service and stores the signed answer. */
+  async activate(rawKey) {
+    const key = rawKey.trim().toUpperCase();
+    const res = await this.f(`${this.url}/v1/license/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, hostId: this.store.config.hostId })
+    });
+    if (!res.ok) throw new Error(`The license service answered ${res.status}. Try again in a minute.`);
+    const signed = await res.json();
+    const normalized = JSON.parse(signed.payload).key || key;
+    this.save({ key: normalized, payload: signed.payload, signature: signed.signature });
+    if (!this.statement()) throw new Error("The license answer failed its signature check.");
+    return this.state();
+  }
+  /** Learns whether sales are open, then re-verifies the saved key. Never throws. */
+  async refresh() {
+    try {
+      const h = await (await this.f(`${this.url}/health`)).json();
+      if (h.configured && !this.cache.enforced) this.save({ enforced: true });
+    } catch {
+    }
+    if (this.cache.key) await this.activate(this.cache.key).catch(() => void 0);
+  }
+  start() {
+    if (this.timer) return;
+    void this.refresh();
+    this.timer = setInterval(() => void this.refresh(), REFRESH_MS);
+    this.timer.unref?.();
+  }
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+  portalUrl() {
+    return this.cache.key ? `${this.url}/portal?key=${encodeURIComponent(this.cache.key)}` : null;
+  }
+};
+
 // src/live/main.ts
 var PORT = Number(process.env["AGENTDECK_PORT"] || DEFAULT_PORT);
 var DEFAULT_RELAY_URL = "wss://agentdeck-relay.finnova.com.au";
@@ -12394,9 +12526,11 @@ async function start() {
     void reportCrash(e, HOST_VERSION, false);
   });
   const store = new Store();
-  if (store.isNew && !store.config.relayUrl) store.saveConfig({ relayUrl: DEFAULT_RELAY_URL });
+  if (store.isNew && !store.config.relayUrl && process.env["AGENTDECK_DEFAULT_RELAY"] !== "off") store.saveConfig({ relayUrl: DEFAULT_RELAY_URL });
   const bridge = new AntigravityBridge();
-  const service = new AgentDeckService(bridge, store, expoPushSender);
+  const license = new LicenseManager(store);
+  license.start();
+  const service = new AgentDeckService(bridge, store, expoPushSender, license);
   const server = new HostServer(service, store, { port: PORT });
   const port = await server.start();
   service.start();
@@ -12520,6 +12654,13 @@ function uninstall() {
   console.log("Removed the AgentDeck login item. Pairings in ~/.agentdeck were kept.");
 }
 var cmd = process.argv[2] ?? "start";
+async function activate() {
+  const key = process.argv[3];
+  if (!key) throw new Error(`Usage: agentdeck-host activate ADK-XXXX-XXXX-XXXX-XXXX   (buy one at ${PRICING_URL})`);
+  const r = await localCall("POST", "/local/license", { key });
+  if (r.error) throw new Error(r.error);
+  console.log(r.active ? `Activated. ${r.message}` : r.message);
+}
 async function doctor() {
   const bridge = new AntigravityBridge();
   const report = await checkCompatibility(await bridge.ensureServers(true));
@@ -12527,10 +12668,10 @@ async function doctor() {
   console.log(report.ok ? "\nAntigravity is fully compatible with this AgentDeck host." : "\nSomething changed in Antigravity. Update AgentDeck (curl -fsSL https://agentdeck.finnova.com.au/install.sh | sh) or report this from the support page.");
   if (!report.ok) process.exitCode = 1;
 }
-var commands = { start, pair, status, install, uninstall, doctor };
+var commands = { start, pair, status, install, uninstall, doctor, activate };
 var run = commands[cmd];
 if (!run) {
-  console.error(`Unknown command "${cmd}". Use: start | pair | status | doctor | install | uninstall`);
+  console.error(`Unknown command "${cmd}". Use: start | pair | status | activate <key> | doctor | install | uninstall`);
   process.exit(2);
 }
 Promise.resolve(run()).catch((e) => {
