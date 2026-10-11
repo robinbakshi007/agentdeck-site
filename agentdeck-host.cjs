@@ -11135,9 +11135,10 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.1.1";
+var HOST_VERSION = "1.1.2";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
+var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
 var POLL_MS = 1500;
 var TRACKER_IDLE_MS = Number(process.env["AGENTDECK_TRACKER_IDLE_MS"] || 10 * 60 * 1e3);
 var RpcError = class extends Error {
@@ -11364,23 +11365,41 @@ var AgentDeckService = class extends import_events.EventEmitter {
     const t = typeof idArg === "string" ? this.trackers.get(idArg) : void 0;
     if (t && t.subscribers > 0) t.subscribers--;
   }
+  historyInflight = /* @__PURE__ */ new Map();
   async history(idArg, before) {
     const id = this.requireConversation(idArg);
     const end = typeof before === "number" ? Math.max(0, Math.floor(before)) : 0;
-    const start2 = Math.max(0, end - HISTORY_PAGE);
-    if (end <= 0) return { items: [], firstIdx: 0, hasMore: false };
-    const steps = await this.bridge.getSteps(id, start2);
-    const items = [];
-    steps.slice(0, end - start2).forEach((s, i) => {
-      const item = stepToItem(s, start2 + i);
-      if (item) items.push(item);
-    });
+    const total = this.summaries.get(id)?.stepCount ?? end;
+    const floor = Math.max(0, total - MAX_HISTORY_DEPTH);
+    const start2 = Math.max(floor, end - HISTORY_PAGE);
+    if (end <= floor) return { items: [], firstIdx: end, hasMore: false, olderOnMac: floor > 0 };
     const t = this.trackers.get(id);
-    if (t) {
-      for (const item of items) t.items.set(item.idx, item);
-      t.firstLoaded = Math.min(t.firstLoaded, start2);
+    const inRange = (i) => i.idx >= start2 && i.idx < end;
+    const done = (items) => ({ items: items.filter(inRange).sort((x, y) => x.idx - y.idx), firstIdx: start2, hasMore: start2 > floor, olderOnMac: start2 <= floor && floor > 0 });
+    if (t && t.firstLoaded <= start2) {
+      t.lastActive = Date.now();
+      return done([...t.items.values()]);
     }
-    return { items, firstIdx: start2, hasMore: start2 > 0 };
+    const k = `${id}:${start2}`;
+    let pending = this.historyInflight.get(k);
+    if (!pending) {
+      pending = (async () => {
+        const steps = await this.bridge.getSteps(id, start2);
+        const items = [];
+        steps.slice(0, end - start2).forEach((st, i) => {
+          const item = stepToItem(st, start2 + i);
+          if (item) items.push(item);
+        });
+        const tr = this.trackers.get(id);
+        if (tr) {
+          for (const item of items) if (!tr.items.has(item.idx)) tr.items.set(item.idx, item);
+          tr.firstLoaded = Math.min(tr.firstLoaded, start2);
+        }
+        return items;
+      })().finally(() => this.historyInflight.delete(k));
+      this.historyInflight.set(k, pending);
+    }
+    return done(await pending);
   }
   async models() {
     if (this.modelCache && Date.now() - this.modelCache.at < 5 * 6e4) return this.modelCache.value;
