@@ -9574,7 +9574,7 @@ var require_websocket = __commonJS({
       }
       const defaultPort = isSecure ? 443 : 80;
       const key = randomBytes(16).toString("base64");
-      const request4 = isSecure ? https.request : http.request;
+      const request5 = isSecure ? https.request : http.request;
       const protocolSet = /* @__PURE__ */ new Set();
       let perMessageDeflate;
       opts.createConnection = opts.createConnection || (isSecure ? tlsConnect : netConnect);
@@ -9651,12 +9651,12 @@ var require_websocket = __commonJS({
         if (opts.auth && !options.headers.authorization) {
           options.headers.authorization = "Basic " + Buffer.from(opts.auth).toString("base64");
         }
-        req = websocket._req = request4(opts);
+        req = websocket._req = request5(opts);
         if (websocket._redirects) {
           websocket.emit("redirect", websocket.url, req);
         }
       } else {
-        req = websocket._req = request4(opts);
+        req = websocket._req = request5(opts);
       }
       if (opts.timeout) {
         req.on("timeout", () => {
@@ -10467,9 +10467,9 @@ var require_websocket_server = __commonJS({
 });
 
 // src/live/main.ts
-var import_fs4 = require("fs");
-var import_os3 = require("os");
-var import_path3 = require("path");
+var import_fs5 = require("fs");
+var import_os5 = require("os");
+var import_path4 = require("path");
 var import_child_process4 = require("child_process");
 var import_http3 = require("http");
 var import_qrcode2 = __toESM(require_lib());
@@ -10478,6 +10478,9 @@ var import_qrcode2 = __toESM(require_lib());
 var import_child_process = require("child_process");
 var import_util = require("util");
 var import_http = require("http");
+var import_fs = require("fs");
+var import_os = require("os");
+var import_path = require("path");
 var execFileAsync = (0, import_util.promisify)(import_child_process.execFile);
 var SERVICE = "/exa.language_server_pb.LanguageServerService/";
 var AntigravityError = class extends Error {
@@ -10672,6 +10675,40 @@ var AntigravityBridge = class {
     }
     return all;
   }
+  /**
+   * After Antigravity restarts it only reports conversations opened in the IDE.
+   * Load the most recently used ones from disk so the phone sees them too.
+   */
+  async loadRecentFromDisk(limit = 25, dir = (0, import_path.join)((0, import_os.homedir)(), ".gemini/antigravity-ide/conversations")) {
+    let ids;
+    try {
+      const seen = /* @__PURE__ */ new Map();
+      for (const f of (0, import_fs.readdirSync)(dir)) {
+        const m = f.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(pb|db)$/);
+        if (!m) continue;
+        const t = (0, import_fs.statSync)((0, import_path.join)(dir, f)).mtimeMs;
+        seen.set(m[1], Math.max(seen.get(m[1]) ?? 0, t));
+      }
+      ids = [...seen.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id]) => id);
+    } catch {
+      return 0;
+    }
+    const servers = await this.ensureServers();
+    const app = servers.find((s) => !s.workspaceId) ?? servers[0];
+    if (!app) return 0;
+    const loaded = new Set((await this.listConversations()).keys());
+    let n = 0;
+    for (const id of ids) {
+      if (loaded.has(id)) continue;
+      try {
+        await connectCall(app, "LoadTrajectory", { cascadeId: id }, 3e4);
+        this.owner.set(id, app);
+        n++;
+      } catch {
+      }
+    }
+    return n;
+  }
   async getSteps(cascadeId, stepOffset) {
     const res = await this.callOwned(cascadeId, "GetCascadeTrajectorySteps", { cascadeId, stepOffset }, 6e4);
     return res.steps ?? [];
@@ -10720,7 +10757,7 @@ var AntigravityBridge = class {
 
 // src/live/service.ts
 var import_events = require("events");
-var import_fs2 = require("fs");
+var import_fs3 = require("fs");
 var import_url = require("url");
 
 // src/live/steps.ts
@@ -10955,8 +10992,8 @@ function stepToItem(step, idx) {
 // src/live/git.ts
 var import_child_process2 = require("child_process");
 var import_util2 = require("util");
-var import_fs = require("fs");
-var import_path = require("path");
+var import_fs2 = require("fs");
+var import_path2 = require("path");
 var execFileAsync2 = (0, import_util2.promisify)(import_child_process2.execFile);
 var MAX_DIFF_BYTES = 200 * 1024;
 async function git(cwd, args) {
@@ -10979,9 +11016,9 @@ async function currentBranch(cwd) {
 }
 function countLines(path) {
   try {
-    if ((0, import_fs.lstatSync)(path).isSymbolicLink()) return { lines: 1, binary: false };
-    if ((0, import_fs.statSync)(path).size > 5 * 1024 * 1024) return { lines: 0, binary: true };
-    const buf = (0, import_fs.readFileSync)(path);
+    if ((0, import_fs2.lstatSync)(path).isSymbolicLink()) return { lines: 1, binary: false };
+    if ((0, import_fs2.statSync)(path).size > 5 * 1024 * 1024) return { lines: 0, binary: true };
+    const buf = (0, import_fs2.readFileSync)(path);
     if (buf.subarray(0, 8e3).includes(0)) return { lines: 0, binary: true };
     const text = buf.toString("utf8");
     return { lines: text ? text.split("\n").length - (text.endsWith("\n") ? 1 : 0) : 0, binary: false };
@@ -11032,7 +11069,7 @@ async function changedFiles(cwd) {
   }
   for (const f of files.values()) {
     if (f.status === "untracked" || f.status === "added" && !hasHead) {
-      const { lines, binary } = countLines((0, import_path.join)(cwd, f.path));
+      const { lines, binary } = countLines((0, import_path2.join)(cwd, f.path));
       f.additions = lines;
       f.binary = binary;
     }
@@ -11040,14 +11077,14 @@ async function changedFiles(cwd) {
   return [...files.values()].sort((a, b) => a.path.localeCompare(b.path));
 }
 async function fileDiff(cwd, file) {
-  const abs = (0, import_path.normalize)((0, import_path.join)(cwd, file));
-  const rel = (0, import_path.relative)(cwd, abs);
-  if (rel.startsWith("..") || (0, import_path.isAbsolute)(rel)) throw new Error("Path is outside the workspace");
-  if ((0, import_fs.existsSync)(abs)) {
-    const realRoot = (0, import_fs.realpathSync)(cwd);
-    const realRel = (0, import_path.relative)(realRoot, (0, import_fs.realpathSync)(abs));
-    if ((0, import_fs.lstatSync)(abs).isSymbolicLink()) return { diff: `Symbolic link ${rel} (contents not shown)`, truncated: false };
-    if (realRel.startsWith("..") || (0, import_path.isAbsolute)(realRel)) throw new Error("Path is outside the workspace");
+  const abs = (0, import_path2.normalize)((0, import_path2.join)(cwd, file));
+  const rel = (0, import_path2.relative)(cwd, abs);
+  if (rel.startsWith("..") || (0, import_path2.isAbsolute)(rel)) throw new Error("Path is outside the workspace");
+  if ((0, import_fs2.existsSync)(abs)) {
+    const realRoot = (0, import_fs2.realpathSync)(cwd);
+    const realRel = (0, import_path2.relative)(realRoot, (0, import_fs2.realpathSync)(abs));
+    if ((0, import_fs2.lstatSync)(abs).isSymbolicLink()) return { diff: `Symbolic link ${rel} (contents not shown)`, truncated: false };
+    if (realRel.startsWith("..") || (0, import_path2.isAbsolute)(realRel)) throw new Error("Path is outside the workspace");
   }
   let diff = "";
   const tracked = await git(cwd, ["ls-files", "--error-unmatch", "--", rel]).then(
@@ -11056,12 +11093,12 @@ async function fileDiff(cwd, file) {
   );
   if (tracked) {
     diff = await git(cwd, ["diff", "HEAD", "-M", "--", rel]).catch(() => git(cwd, ["diff", "--", rel]));
-  } else if ((0, import_fs.existsSync)(abs)) {
+  } else if ((0, import_fs2.existsSync)(abs)) {
     const { binary } = countLines(abs);
     if (binary) {
       diff = `Binary file ${rel} (new)`;
     } else {
-      const text = (0, import_fs.readFileSync)(abs, "utf8");
+      const text = (0, import_fs2.readFileSync)(abs, "utf8");
       const lines = text.split("\n");
       if (text.endsWith("\n")) lines.pop();
       diff = [`--- /dev/null`, `+++ b/${rel}`, `@@ -0,0 +1,${lines.length} @@`, ...lines.map((l) => `+${l}`)].join("\n");
@@ -11134,6 +11171,8 @@ var AgentDeckService = class extends import_events.EventEmitter {
   trackers = /* @__PURE__ */ new Map();
   timer = null;
   inflight = null;
+  lastDiskLoad = 0;
+  loadedForPids = "";
   modelCache = null;
   start() {
     if (this.timer) return;
@@ -11155,6 +11194,12 @@ var AgentDeckService = class extends import_events.EventEmitter {
   }
   async doPoll() {
     {
+      const pids = (await this.bridge.ensureServers()).map((s) => s.pid).join(",");
+      if (pids && (pids !== this.loadedForPids || Date.now() - this.lastDiskLoad > 10 * 6e4)) {
+        this.loadedForPids = pids;
+        this.lastDiskLoad = Date.now();
+        void this.bridge.loadRecentFromDisk().then((n) => n ? this.poll() : void 0).catch(() => 0);
+      }
       const prev = this.summaries;
       this.summaries = await this.bridge.listConversations();
       for (const [id, s] of this.summaries) {
@@ -11280,7 +11325,7 @@ var AgentDeckService = class extends import_events.EventEmitter {
     if (typeof path !== "string" || !path) throw new RpcError("workspacePath is required");
     const known = (await this.workspaces()).some((w) => w.path === path);
     if (!known) throw new RpcError("Unknown workspace");
-    if (!(0, import_fs2.existsSync)(path)) throw new RpcError("Workspace folder no longer exists");
+    if (!(0, import_fs3.existsSync)(path)) throw new RpcError("Workspace folder no longer exists");
     return path;
   }
   requireConversation(id) {
@@ -11466,9 +11511,9 @@ var AgentDeckService = class extends import_events.EventEmitter {
 };
 
 // src/live/store.ts
-var import_fs3 = require("fs");
-var import_os = require("os");
-var import_path2 = require("path");
+var import_fs4 = require("fs");
+var import_os2 = require("os");
+var import_path3 = require("path");
 
 // src/live/wire.ts
 var import_tweetnacl = __toESM(require_nacl_fast());
@@ -11579,17 +11624,17 @@ var Store = class {
   /** True when this run created the host identity (first launch). */
   isNew;
   devices;
-  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path2.join)((0, import_os.homedir)(), ".agentdeck")) {
+  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path3.join)((0, import_os2.homedir)(), ".agentdeck")) {
     this.dir = dir;
-    (0, import_fs3.mkdirSync)(dir, { recursive: true, mode: 448 });
-    (0, import_fs3.chmodSync)(dir, 448);
-    this.hostFile = (0, import_path2.join)(dir, "host.json");
-    this.devicesFile = (0, import_path2.join)(dir, "devices.json");
+    (0, import_fs4.mkdirSync)(dir, { recursive: true, mode: 448 });
+    (0, import_fs4.chmodSync)(dir, 448);
+    this.hostFile = (0, import_path3.join)(dir, "host.json");
+    this.devicesFile = (0, import_path3.join)(dir, "devices.json");
     const saved = this.read(this.hostFile);
     this.isNew = !saved;
     this.config = saved ?? {
       hostId: randomId(12),
-      hostName: (0, import_os.hostname)().replace(/\.local$/, ""),
+      hostName: (0, import_os2.hostname)().replace(/\.local$/, ""),
       relayToken: randomId(32)
     };
     if (process.env["AGENTDECK_RELAY_URL"]) this.config.relayUrl = process.env["AGENTDECK_RELAY_URL"];
@@ -11598,16 +11643,16 @@ var Store = class {
   }
   read(file) {
     try {
-      return (0, import_fs3.existsSync)(file) ? JSON.parse((0, import_fs3.readFileSync)(file, "utf8")) : null;
+      return (0, import_fs4.existsSync)(file) ? JSON.parse((0, import_fs4.readFileSync)(file, "utf8")) : null;
     } catch {
       return null;
     }
   }
   write(file, value) {
     const tmp = `${file}.tmp`;
-    (0, import_fs3.writeFileSync)(tmp, JSON.stringify(value, null, 2), { mode: 384 });
-    (0, import_fs3.renameSync)(tmp, file);
-    (0, import_fs3.chmodSync)(file, 384);
+    (0, import_fs4.writeFileSync)(tmp, JSON.stringify(value, null, 2), { mode: 384 });
+    (0, import_fs4.renameSync)(tmp, file);
+    (0, import_fs4.chmodSync)(file, 384);
   }
   saveConfig(patch) {
     this.config = { ...this.config, ...patch };
@@ -11638,7 +11683,7 @@ var Store = class {
 
 // src/live/server.ts
 var import_http2 = require("http");
-var import_os2 = require("os");
+var import_os3 = require("os");
 var import_child_process3 = require("child_process");
 var import_qrcode = __toESM(require_lib());
 
@@ -11939,7 +11984,7 @@ code{font:13px ui-monospace,Menlo,monospace}.code{font:600 22px ui-monospace,Men
 #qr svg{width:240px;height:240px;background:#fff;border-radius:8px;padding:6px;display:block;margin:0 auto}.muted{color:var(--muted);font-size:13px}
 </style></head><body><main>
 <h1>AgentDeck Host</h1><p class="sub">Control Antigravity from your phone. This page is only reachable from this Mac.</p>
-<div class="card"><h2>Status</h2><div id="status" class="muted">Loading\u2026</div></div>
+<div class="card"><h2>Status</h2><div id="status" class="muted">Loading\u2026</div><div id="compat" class="muted" style="margin-top:8px"></div></div>
 <div class="card"><h2>Pair a phone</h2>
 <p class="muted">Open AgentDeck on your phone, tap <b>Pair with Mac</b>, and scan this code. Codes expire after 10 minutes and work once.</p>
 <div id="pair"><button id="pairBtn">Show pairing code</button></div></div>
@@ -11972,14 +12017,87 @@ $('pairBtn').onclick=async()=>{
   clearInterval(timer);timer=setInterval(()=>{const s=Math.max(0,Math.round((p.expiresAt-Date.now())/1000));$('left').textContent='Expires in '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');if(!s){clearInterval(timer);$('pair').innerHTML='<button id="pairBtn2">Show a new code</button>';$('pairBtn2').onclick=$('pairBtn').onclick;}},1000);
 };
 $('relayBtn').onclick=async()=>{const r=await post('/local/relay',{url:$('relay').value});if(r.error)alert(r.error);refresh();};
+fetch('/local/compat').then(r=>r.json()).then(c=>{$('compat').innerHTML=c.ok?'<span class="dot" style="background:var(--ok)"></span>Antigravity compatibility check passed':'<b style="color:var(--bad)">Antigravity changed in a way AgentDeck does not support yet:</b><br>'+c.checks.filter(x=>!x.ok).map(x=>esc(x.name+': '+x.detail)).join('<br>')+'<br>Update AgentDeck or contact support.';}).catch(()=>{});
 refresh();setInterval(refresh,4000);
 </script></body></html>`;
+}
+
+// src/live/compat.ts
+async function probe(name, fn) {
+  try {
+    return { name, ok: true, detail: await fn() };
+  } catch (e) {
+    return { name, ok: false, detail: e.message };
+  }
+}
+var WRITE_METHODS = ["StartCascade", "SendUserCascadeMessage", "CancelCascadeInvocation", "HandleCascadeUserInteraction"];
+async function checkCompatibility(servers) {
+  const checks = [];
+  const s = servers[0];
+  checks.push({ name: "Antigravity running", ok: !!s, detail: s ? `${servers.length} window(s) found` : "No Antigravity language server found" });
+  if (s) {
+    let sampleId = null;
+    let stepServer = s;
+    checks.push(
+      await probe("List conversations", async () => {
+        let total = 0;
+        for (const srv of servers) {
+          const r = await connectCall(srv, "GetAllCascadeTrajectories", {}, 15e3);
+          if (!r || typeof r !== "object") throw new Error("Unexpected response");
+          const map = r.trajectorySummaries ?? {};
+          if (typeof map !== "object") throw new Error("trajectorySummaries is no longer a map");
+          const all = Object.entries(map);
+          const first = all[0]?.[1];
+          if (first && (typeof first.stepCount !== "number" || typeof first.status !== "string")) throw new Error("Conversation summary shape changed (stepCount/status)");
+          if (!sampleId && all[0]) {
+            sampleId = all[0][0];
+            stepServer = srv;
+          }
+          total += all.length;
+        }
+        return `${total} conversation(s) across ${servers.length} window(s)`;
+      })
+    );
+    checks.push(
+      await probe("Read conversation steps", async () => {
+        if (!sampleId) return "skipped (no conversations)";
+        const r = await connectCall(stepServer, "GetCascadeTrajectorySteps", { cascadeId: sampleId, stepOffset: 0 }, 6e4);
+        if (!Array.isArray(r?.steps)) throw new Error("Response no longer has a steps array");
+        const typed = r.steps.filter((x) => typeof x?.type === "string" && x.type.startsWith("CORTEX_STEP_TYPE_"));
+        if (r.steps.length && !typed.length) throw new Error("Step type names changed");
+        return `${r.steps.length} step(s) readable`;
+      })
+    );
+    checks.push(
+      await probe("List models", async () => {
+        const r = await connectCall(s, "GetCascadeModelConfigData", {}, 1e4);
+        const n = (r?.clientModelConfigs ?? []).filter((m) => m?.modelOrAlias?.model).length;
+        if (!n) throw new Error("No models in clientModelConfigs");
+        return `${n} model(s)`;
+      })
+    );
+    for (const m of WRITE_METHODS) {
+      checks.push(
+        await probe(`Method ${m}`, async () => {
+          try {
+            await connectCall(s, m, { cascadeId: "" }, 1e4);
+            return "available";
+          } catch (e) {
+            const msg = e.message;
+            if (/unimplemented|not found: .*method|404/i.test(msg) && !/trajectory|cascade/i.test(msg)) throw new Error(`Method missing: ${msg}`);
+            return "available";
+          }
+        })
+      );
+    }
+  }
+  return { ok: checks.every((c) => c.ok), checkedAt: (/* @__PURE__ */ new Date()).toISOString(), servers: servers.length, checks };
 }
 
 // src/live/server.ts
 function lanAddresses() {
   const out = [];
-  for (const list of Object.values((0, import_os2.networkInterfaces)())) {
+  for (const list of Object.values((0, import_os3.networkInterfaces)())) {
     for (const a of list ?? []) {
       if (a.family === "IPv4" && !a.internal && !a.address.startsWith("169.254.")) out.push(a.address);
     }
@@ -12038,6 +12156,7 @@ var HostServer = class {
   relay = null;
   advertiser = null;
   sessions = /* @__PURE__ */ new Set();
+  compat = null;
   port = 0;
   urls() {
     return lanAddresses().map((ip) => `http://${ip}:${this.port}`);
@@ -12093,6 +12212,12 @@ var HostServer = class {
           "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'"
         });
         return void res.end(dashboardHtml());
+      }
+      if (req.method === "GET" && url.pathname === "/local/compat") {
+        if (!this.compat || Date.now() - Date.parse(this.compat.checkedAt) > 10 * 6e4) {
+          this.compat = await checkCompatibility(await this.service.bridge.ensureServers());
+        }
+        return json(res, 200, this.compat);
       }
       if (req.method === "GET" && url.pathname === "/local/status") {
         const info = await this.service.hostInfo();
@@ -12199,6 +12324,42 @@ var HostServer = class {
   }
 };
 
+// src/live/crash.ts
+var import_https2 = require("https");
+var import_os4 = require("os");
+var ENDPOINT = process.env["AGENTDECK_CRASH_URL"] || "https://agentdeck-telemetry.finnova.com.au/v1/crash";
+function scrub(text) {
+  return text.replace(/\/(Users|home)\/[^/\s'"]+/g, "/~").replace(/[A-Za-z]:\\Users\\[^\\\s'"]+/g, "~").replace(/[^\s@'"]+@[^\s@'"]+\.[a-z]{2,}/gi, "<email>").replace(/\b[A-Za-z0-9_\-+/=]{32,}\b/g, "<redacted>");
+}
+function reportCrash(error, version, fatal) {
+  if (process.env["AGENTDECK_CRASH_REPORTS"] === "0") return Promise.resolve();
+  const e = error instanceof Error ? error : new Error(String(error));
+  const body = JSON.stringify({
+    source: "host",
+    version,
+    platform: process.platform,
+    os: `${(0, import_os4.release)()} node ${process.versions.node}`,
+    name: scrub(e.name).slice(0, 120),
+    message: scrub(e.message).slice(0, 1e3),
+    stack: scrub(e.stack ?? "").slice(0, 6e3),
+    fatal
+  });
+  return new Promise((resolve2) => {
+    try {
+      const u = new URL(ENDPOINT);
+      const req = (0, import_https2.request)({ host: u.host, path: u.pathname, method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }, timeout: 5e3 }, (res) => {
+        res.resume();
+        res.on("end", () => resolve2());
+      });
+      req.on("error", () => resolve2());
+      req.on("timeout", () => req.destroy());
+      req.end(body);
+    } catch {
+      resolve2();
+    }
+  });
+}
+
 // src/live/main.ts
 var PORT = Number(process.env["AGENTDECK_PORT"] || DEFAULT_PORT);
 var DEFAULT_RELAY_URL = "wss://agentdeck-relay.finnova.com.au";
@@ -12224,6 +12385,14 @@ function localCall(method, path, body) {
   });
 }
 async function start() {
+  process.on("uncaughtException", (e) => {
+    console.error("Unexpected error:", e);
+    void reportCrash(e, HOST_VERSION, false);
+  });
+  process.on("unhandledRejection", (e) => {
+    console.error("Unhandled promise rejection:", e);
+    void reportCrash(e, HOST_VERSION, false);
+  });
   const store = new Store();
   if (store.isNew && !store.config.relayUrl) store.saveConfig({ relayUrl: DEFAULT_RELAY_URL });
   const bridge = new AntigravityBridge();
@@ -12265,18 +12434,18 @@ async function status() {
   console.log(JSON.stringify({ ...s, devices: s.devices.map((d) => `${d.name} (${d.platform})`) }, null, 2));
 }
 function entryCommand() {
-  return { node: process.execPath, script: (0, import_path3.resolve)(process.argv[1]) };
+  return { node: process.execPath, script: (0, import_path4.resolve)(process.argv[1]) };
 }
 function install() {
   const { node, script } = entryCommand();
-  const logDir = (0, import_path3.join)((0, import_os3.homedir)(), ".agentdeck");
-  (0, import_fs4.mkdirSync)(logDir, { recursive: true, mode: 448 });
-  (0, import_fs4.chmodSync)(logDir, 448);
+  const logDir = (0, import_path4.join)((0, import_os5.homedir)(), ".agentdeck");
+  (0, import_fs5.mkdirSync)(logDir, { recursive: true, mode: 448 });
+  (0, import_fs5.chmodSync)(logDir, 448);
   if (process.platform === "darwin") {
-    const plist = (0, import_path3.join)((0, import_os3.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
-    (0, import_fs4.mkdirSync)((0, import_path3.join)((0, import_os3.homedir)(), "Library/LaunchAgents"), { recursive: true });
+    const plist = (0, import_path4.join)((0, import_os5.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
+    (0, import_fs5.mkdirSync)((0, import_path4.join)((0, import_os5.homedir)(), "Library/LaunchAgents"), { recursive: true });
     const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-    (0, import_fs4.writeFileSync)(
+    (0, import_fs5.writeFileSync)(
       plist,
       `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -12286,8 +12455,8 @@ function install() {
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
-  <key>StandardOutPath</key><string>${esc((0, import_path3.join)(logDir, "host.log"))}</string>
-  <key>StandardErrorPath</key><string>${esc((0, import_path3.join)(logDir, "host.log"))}</string>
+  <key>StandardOutPath</key><string>${esc((0, import_path4.join)(logDir, "host.log"))}</string>
+  <key>StandardErrorPath</key><string>${esc((0, import_path4.join)(logDir, "host.log"))}</string>
 </dict></plist>
 `
     );
@@ -12298,12 +12467,12 @@ function install() {
     (0, import_child_process4.execFileSync)("launchctl", ["load", "-w", plist]);
     console.log(`Installed. AgentDeck host now starts at login.
   Dashboard: http://localhost:${PORT}/
-  Logs: ${(0, import_path3.join)(logDir, "host.log")}`);
+  Logs: ${(0, import_path4.join)(logDir, "host.log")}`);
   } else if (process.platform === "linux") {
-    const dir = (0, import_path3.join)((0, import_os3.homedir)(), ".config/systemd/user");
-    (0, import_fs4.mkdirSync)(dir, { recursive: true });
-    (0, import_fs4.writeFileSync)(
-      (0, import_path3.join)(dir, "agentdeck-host.service"),
+    const dir = (0, import_path4.join)((0, import_os5.homedir)(), ".config/systemd/user");
+    (0, import_fs5.mkdirSync)(dir, { recursive: true });
+    (0, import_fs5.writeFileSync)(
+      (0, import_path4.join)(dir, "agentdeck-host.service"),
       `[Unit]
 Description=AgentDeck host
 After=network-online.target
@@ -12321,8 +12490,8 @@ WantedBy=default.target
     console.log(`Installed as a systemd user service.
   Dashboard: http://localhost:${PORT}/`);
   } else if (process.platform === "win32") {
-    const startup = (0, import_path3.join)(process.env["APPDATA"] ?? (0, import_os3.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
-    (0, import_fs4.writeFileSync)((0, import_path3.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run """${node}"" ""${script}"" start", 0, False
+    const startup = (0, import_path4.join)(process.env["APPDATA"] ?? (0, import_os5.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
+    (0, import_fs5.writeFileSync)((0, import_path4.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run """${node}"" ""${script}"" start", 0, False
 `);
     console.log(`Installed in your Startup folder. Sign out and back in, or run: agentdeck-host start`);
   } else {
@@ -12331,30 +12500,37 @@ WantedBy=default.target
 }
 function uninstall() {
   if (process.platform === "darwin") {
-    const plist = (0, import_path3.join)((0, import_os3.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
-    if ((0, import_fs4.existsSync)(plist)) {
+    const plist = (0, import_path4.join)((0, import_os5.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
+    if ((0, import_fs5.existsSync)(plist)) {
       try {
         (0, import_child_process4.execFileSync)("launchctl", ["unload", "-w", plist], { stdio: "ignore" });
       } catch {
       }
-      (0, import_fs4.rmSync)(plist);
+      (0, import_fs5.rmSync)(plist);
     }
   } else if (process.platform === "linux") {
     try {
       (0, import_child_process4.execFileSync)("systemctl", ["--user", "disable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
     } catch {
     }
-    (0, import_fs4.rmSync)((0, import_path3.join)((0, import_os3.homedir)(), ".config/systemd/user/agentdeck-host.service"), { force: true });
+    (0, import_fs5.rmSync)((0, import_path4.join)((0, import_os5.homedir)(), ".config/systemd/user/agentdeck-host.service"), { force: true });
   } else if (process.platform === "win32") {
-    (0, import_fs4.rmSync)((0, import_path3.join)(process.env["APPDATA"] ?? (0, import_os3.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup/AgentDeck Host.vbs"), { force: true });
+    (0, import_fs5.rmSync)((0, import_path4.join)(process.env["APPDATA"] ?? (0, import_os5.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup/AgentDeck Host.vbs"), { force: true });
   }
   console.log("Removed the AgentDeck login item. Pairings in ~/.agentdeck were kept.");
 }
 var cmd = process.argv[2] ?? "start";
-var commands = { start, pair, status, install, uninstall };
+async function doctor() {
+  const bridge = new AntigravityBridge();
+  const report = await checkCompatibility(await bridge.ensureServers(true));
+  for (const c of report.checks) console.log(`${c.ok ? "\u2714" : "\u2718"} ${c.name}: ${c.detail}`);
+  console.log(report.ok ? "\nAntigravity is fully compatible with this AgentDeck host." : "\nSomething changed in Antigravity. Update AgentDeck (curl -fsSL https://agentdeck.finnova.com.au/install.sh | sh) or report this from the support page.");
+  if (!report.ok) process.exitCode = 1;
+}
+var commands = { start, pair, status, install, uninstall, doctor };
 var run = commands[cmd];
 if (!run) {
-  console.error(`Unknown command "${cmd}". Use: start | pair | status | install | uninstall`);
+  console.error(`Unknown command "${cmd}". Use: start | pair | status | doctor | install | uninstall`);
   process.exit(2);
 }
 Promise.resolve(run()).catch((e) => {
