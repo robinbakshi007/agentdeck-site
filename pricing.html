@@ -18,8 +18,8 @@
   <p class="muted" style="margin:0;font-size:14px">Secure checkout by Stripe. Cancel anytime from the billing link on your AgentDeck dashboard; you keep access until the end of the paid month.</p>
 </div>
 <h2>How it works</h2>
-<ol><li>Subscribe here. Your license key appears straight away and is printed on your future invoices.</li><li><a href="/install">Install the host</a> on your Mac and paste the key on its dashboard.</li><li>Install the free AgentDeck app on your phone and scan the pairing code.</li></ol>
-<p class="muted" style="font-size:14px">Lost your license key? It's on your AgentDeck dashboard (<code>http://localhost:48632</code>) on any computer you activated, and on your invoices. Otherwise <a href="/support">contact support</a> with your billing email.</p>
+<ol><li>Subscribe here. Your license key appears straight away and is printed on your future invoices.</li><li><a href="/mac">Download AgentDeck for Mac</a>, open it, and paste the key under <b>AgentDeck Pro license</b> (menu-bar icon → Open dashboard).</li><li>Install the free AgentDeck app on your phone and scan the pairing code.</li></ol>
+<p class="muted" style="font-size:14px">Lost your license key? It's on the AgentDeck dashboard (menu-bar icon → Open dashboard) of any computer you activated, and on your invoices. Otherwise <a href="/support">contact support</a> with your billing email.</p>
 <script>
 if(new URLSearchParams(location.search).get('error')==='checkout')document.getElementById('checkout-error').hidden=false;
 fetch('https://agentdeck-billing.finnova.com.au/v1/pricing').then(r=>r.json()).then(p=>{
