@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Download AgentDeck</title><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css"></head><body><main>
+<nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">AgentDeck</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+<h1>Download AgentDeck</h1>
+<p class="muted">AgentDeck runs quietly on the computer where you use Antigravity and connects it to the AgentDeck app on your phone.</p>
+<div class="card" id="mac" style="display:grid;gap:10px">
+  <h2 style="margin:0">Mac</h2>
+  <p class="muted" style="margin:0">Apple silicon and Intel Macs, macOS 13 or later.</p>
+  <a href="https://github.com/robinbakshi007/agentdeck-site/releases/latest/download/AgentDeck.dmg" style="justify-self:start;background:var(--accent);color:#fff;text-decoration:none;border-radius:8px;padding:12px 22px;font-weight:700">Download for Mac</a>
+  <p class="muted" style="margin:0;font-size:14px">Open the file, drag AgentDeck into Applications, open it. <a href="/mac">Mac setup help</a></p>
+</div>
+<div class="card" id="windows" style="display:grid;gap:10px">
+  <h2 style="margin:0">Windows</h2>
+  <p class="muted" style="margin:0">Windows 10 or 11, 64-bit.</p>
+  <a href="https://github.com/robinbakshi007/agentdeck-site/releases/latest/download/AgentDeck.exe" style="justify-self:start;background:var(--accent);color:#fff;text-decoration:none;border-radius:8px;padding:12px 22px;font-weight:700">Download for Windows</a>
+  <ol style="margin:0">
+    <li>Double-click <b>AgentDeck.exe</b>. It installs for your user account (no admin needed), starts with Windows and opens the pairing page.</li>
+    <li>If Windows shows "Windows protected your PC", click <b>More info → Run anyway</b> (this goes away once our signed build ships).</li>
+    <li>On your phone, scan the code or type the 8 characters.</li>
+  </ol>
+  <p class="muted" style="margin:0;font-size:14px">Pair another phone later: open <code>http://localhost:48632/pair</code>. Remove AgentDeck: run <code>%LOCALAPPDATA%\AgentDeck\AgentDeck.exe uninstall</code>.</p>
+</div>
+<div class="card" id="linux" style="display:grid;gap:10px">
+  <h2 style="margin:0">Linux</h2>
+  <p class="muted" style="margin:0">Needs Node.js 20 or newer. In a terminal: <code>curl -fsSL https://agentdeck.finnova.com.au/install.sh | sh</code> (<a href="/install">details</a>)</p>
+</div>
+<p class="muted" style="font-size:13px">AgentDeck is an independent companion app and is not affiliated with Google or Antigravity.</p>
+</main></body></html>

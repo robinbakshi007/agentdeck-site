@@ -11183,7 +11183,7 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.2.2";
+var HOST_VERSION = "1.2.3";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -11196,6 +11196,7 @@ function summaryToDto(id, s, pending) {
   const path = ws?.workspaceFolderAbsoluteUri ? uriToPath(ws.workspaceFolderAbsoluteUri) : null;
   return {
     id,
+    agent: "antigravity",
     title: s.summary || "Untitled conversation",
     status: runStatus(s.status),
     stepCount: s.stepCount ?? 0,
@@ -12433,6 +12434,11 @@ var HostServer = class {
       }
       if (req.method === "POST" && !isTrustedLocalAction(req, this.port)) return json(res, 403, { error: "Forbidden" });
       if (req.method === "POST" && url.pathname === "/local/pair") return json(res, 200, await this.pairingPayload());
+      if (req.method === "POST" && url.pathname === "/local/quit") {
+        json(res, 200, { ok: true });
+        setTimeout(() => process.exit(0), 200);
+        return;
+      }
       if (req.method === "POST" && url.pathname === "/local/pair/new") {
         this.pairing.close();
         return json(res, 200, await this.pairingPayload());
@@ -12923,7 +12929,7 @@ function uninstall() {
   }
   console.log("Removed the AgentDeck login item. Pairings in ~/.agentdeck were kept.");
 }
-var cmd = process.argv[2] ?? "start";
+var cmd = process.argv[2] ?? (process.platform === "win32" && isSea() ? "setup" : "start");
 async function activate() {
   const key = process.argv[3];
   if (!key) throw new Error(`Usage: agentdeck-host activate ADK-XXXX-XXXX-XXXX-XXXX   (buy one at ${PRICING_URL})`);
@@ -12935,10 +12941,60 @@ async function doctor() {
   const bridge = new AntigravityBridge();
   const report = await checkCompatibility(await bridge.ensureServers(true));
   for (const c of report.checks) console.log(`${c.ok ? "\u2714" : "\u2718"} ${c.name}: ${c.detail}`);
-  console.log(report.ok ? "\nAntigravity is fully compatible with this AgentDeck host." : "\nSomething changed in Antigravity. Update AgentDeck (curl -fsSL https://agentdeck.finnova.com.au/install.sh | sh) or report this from the support page.");
+  const notRunning = !report.ok && report.checks.length > 0 && !report.checks[0].ok;
+  console.log(
+    report.ok ? "\nAntigravity is fully compatible with this AgentDeck host." : notRunning ? "\nAntigravity isn't running on this computer. Open Antigravity, then try again." : "\nSomething changed in Antigravity. Update AgentDeck from https://agentdeck.finnova.com.au/download, or contact us at https://agentdeck.finnova.com.au/support."
+  );
   if (!report.ok) process.exitCode = 1;
 }
-var commands = { start, pair, status, install, uninstall, doctor, activate };
+var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function runningVersion() {
+  try {
+    return (await localCall("GET", "/api/health")).version ?? null;
+  } catch {
+    return null;
+  }
+}
+async function setup() {
+  if (process.platform !== "win32") throw new Error("setup is for Windows; on a Mac use the AgentDeck app, elsewhere run: agentdeck-host install");
+  const dir = (0, import_path4.join)(process.env["LOCALAPPDATA"] ?? (0, import_path4.join)((0, import_os5.homedir)(), "AppData", "Local"), "AgentDeck");
+  const target = (0, import_path4.join)(dir, "AgentDeck.exe");
+  console.log("Setting up AgentDeck\u2026");
+  const running = await runningVersion();
+  if (running && running !== HOST_VERSION) {
+    console.log(`Replacing AgentDeck ${running} with ${HOST_VERSION}\u2026`);
+    await localCall("POST", "/local/quit", {}).catch(() => void 0);
+    for (let i = 0; i < 20 && await runningVersion(); i++) await sleep(500);
+  }
+  if (running !== HOST_VERSION) {
+    (0, import_fs5.mkdirSync)(dir, { recursive: true });
+    if ((0, import_path4.resolve)(process.execPath).toLowerCase() !== (0, import_path4.resolve)(target).toLowerCase()) {
+      for (let i = 0; ; i++) {
+        try {
+          (0, import_fs5.copyFileSync)(process.execPath, target);
+          break;
+        } catch (e) {
+          if (i >= 10) throw new Error(`Could not copy AgentDeck to ${dir}: ${e.message}`);
+          await sleep(500);
+        }
+      }
+    }
+    const startup = (0, import_path4.join)(process.env["APPDATA"] ?? (0, import_os5.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
+    (0, import_fs5.mkdirSync)(startup, { recursive: true });
+    const q = '""';
+    (0, import_fs5.writeFileSync)((0, import_path4.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${q}${target}${q} start", 0, False
+`);
+    (0, import_child_process4.spawn)(target, ["start"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    for (let i = 0; i < 40 && !await runningVersion(); i++) await sleep(500);
+  }
+  const now = await runningVersion();
+  if (!now) throw new Error('AgentDeck did not start. Run "AgentDeck.exe start" in a terminal to see why, or contact support.');
+  console.log(`AgentDeck ${now} is running and starts with Windows.
+  Pair your phone: http://localhost:${PORT}/pair`);
+  if (!process.argv.includes("--no-browser")) (0, import_child_process4.spawn)("cmd", ["/c", "start", "", `http://localhost:${PORT}/pair`], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  await sleep(3e3);
+}
+var commands = { start, pair, status, install, uninstall, doctor, activate, setup };
 var run = commands[cmd];
 if (!run) {
   console.error(`Unknown command "${cmd}". Use: start | pair | status | activate <key> | doctor | install | uninstall`);
