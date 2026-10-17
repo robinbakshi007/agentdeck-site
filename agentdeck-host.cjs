@@ -11183,7 +11183,7 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.2.0";
+var HOST_VERSION = "1.2.1";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -11225,6 +11225,8 @@ var AgentDeckService = class extends import_events.EventEmitter {
   lastDiskLoad = 0;
   loadedForPids = "";
   modelCache = null;
+  /** Set by main.ts: tells phones and the dashboard when a newer AgentDeck is out. */
+  updates = null;
   start() {
     if (this.timer) return;
     const tick = async () => {
@@ -11354,7 +11356,8 @@ var AgentDeckService = class extends import_events.EventEmitter {
         error: this.bridge.lastError ?? void 0
       },
       platform: process.platform,
-      license: this.license ? (({ required, active, status: status2, renewsAt, message }) => ({ required, active, status: status2, renewsAt, message }))(this.license.state()) : void 0
+      license: this.license ? (({ required, active, status: status2, renewsAt, message }) => ({ required, active, status: status2, renewsAt, message }))(this.license.state()) : void 0,
+      update: this.updates?.info()
     };
   }
   async conversations() {
@@ -12093,7 +12096,8 @@ input{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;ba
 code{font:13px ui-monospace,Menlo,monospace}.code{font:600 22px ui-monospace,Menlo,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
 #qr svg{width:240px;height:240px;background:#fff;border-radius:8px;padding:6px;display:block;margin:0 auto}.muted{color:var(--muted);font-size:13px}
 </style></head><body><main>
-<h1>AgentDeck Host</h1><p class="sub">Control Antigravity from your phone. This page is only reachable from this Mac.</p>
+<h1>AgentDeck Host</h1><p class="sub">Control Antigravity from your phone. This page is only reachable from this Mac. <a href="https://agentdeck.finnova.com.au/help" target="_blank" rel="noopener">Help &amp; support</a></p>
+<div id="update" class="card" hidden style="border-color:var(--accent)"></div>
 <div class="card"><h2>Status</h2><div id="status" class="muted">Loading\u2026</div><div id="compat" class="muted" style="margin-top:8px"></div></div>
 <div class="card"><h2>AgentDeck Pro license</h2><div id="lic" class="muted">Checking\u2026</div>
 <div class="row"><input id="licKey" placeholder="ADK-XXXX-XXXX-XXXX-XXXX" autocomplete="off"><button id="licBtn">Activate</button></div>
@@ -12112,6 +12116,8 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 let timer;
 async function refresh(){
   const s=await fetch('/local/status').then(r=>r.json());
+  const u=s.update, ub=document.getElementById('update');
+  if(u&&u.available){ub.hidden=false;ub.innerHTML='<b>AgentDeck '+esc(u.latest)+' is available</b> (you have '+esc(s.version)+'). '+(u.notes?esc(u.notes)+' ':'')+'<a href="'+esc(u.url)+'" target="_blank" rel="noopener">Get the update</a>';}else{ub.hidden=true;}
   const ag=s.antigravity.connected;
   $('status').innerHTML=
    '<div class="row"><span><span class="dot" style="background:'+(ag?'var(--ok)':'var(--bad)')+'"></span>Antigravity</span><span>'+(ag?esc(s.antigravity.servers+' window(s), '+s.conversations+' conversations'):esc(s.antigravity.error||'Not running'))+'</span></div>'+
@@ -12694,6 +12700,54 @@ var LicenseManager = class {
   }
 };
 
+// src/live/updates.ts
+var VERSION_URL = process.env["AGENTDECK_VERSION_URL"] || "https://agentdeck.finnova.com.au/version.json";
+var CHECK_MS = 12 * 3600 * 1e3;
+function compareVersions(a, b) {
+  const pa = a.split(".").map((x) => parseInt(x, 10) || 0);
+  const pb = b.split(".").map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d) return d < 0 ? -1 : 1;
+  }
+  return 0;
+}
+var UpdateChecker = class {
+  constructor(current, opts = {}) {
+    this.current = current;
+    this.opts = opts;
+  }
+  latest = null;
+  timer = null;
+  async check() {
+    try {
+      const res = await (this.opts.fetch ?? fetch)(this.opts.url ?? VERSION_URL, { signal: AbortSignal.timeout(1e4) });
+      if (res.ok) this.latest = await res.json();
+    } catch {
+    }
+    return this.info();
+  }
+  info() {
+    const v = this.latest;
+    const mac = this.opts.isMacApp ?? process.platform === "darwin";
+    const fallback = mac ? "https://agentdeck.finnova.com.au/mac" : "https://agentdeck.finnova.com.au/install";
+    const given = mac ? v?.macUrl : v?.installUrl;
+    const url = given && /^https:\/\/agentdeck\.finnova\.com\.au\//.test(given) ? given : fallback;
+    const latest = v?.host ?? null;
+    return { available: !!latest && compareVersions(latest, this.current) > 0, latest, url, notes: v?.notes };
+  }
+  start() {
+    if (this.timer) return;
+    void this.check();
+    this.timer = setInterval(() => void this.check(), CHECK_MS);
+    this.timer.unref?.();
+  }
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+};
+
 // src/live/main.ts
 var PORT = Number(process.env["AGENTDECK_PORT"] || DEFAULT_PORT);
 var DEFAULT_RELAY_URL = "wss://agentdeck-relay.finnova.com.au";
@@ -12733,6 +12787,9 @@ async function start() {
   const license = new LicenseManager(store);
   license.start();
   const service = new AgentDeckService(bridge, store, expoPushSender, license);
+  const updates = new UpdateChecker(HOST_VERSION, { isMacApp: isSea() });
+  updates.start();
+  service.updates = updates;
   const server = new HostServer(service, store, { port: PORT });
   const port = await server.start();
   service.start();

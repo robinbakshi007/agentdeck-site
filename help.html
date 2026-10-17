@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AgentDeck Help</title><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
+<style>details{border-bottom:1px solid var(--border);padding:12px 0}summary{cursor:pointer;font-weight:700}details p,details ol{margin:8px 0 0}.toc a{margin-right:14px}</style></head><body><main>
+<nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">AgentDeck</a><a href="/pricing">Pricing</a><a href="/mac">Mac app</a><a href="/install">Other computers</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+<h1>Help centre</h1>
+<p class="toc muted"><a href="#start">Getting started</a><a href="#faq">Questions</a><a href="#trouble">Troubleshooting</a><a href="#billing">Billing</a><a href="#contact">Contact us</a></p>
+
+<h2 id="start">Getting started</h2>
+<div class="card">
+<p style="margin-top:0"><b>How it works:</b> 📱 AgentDeck phone app ⇄ 🔒 end-to-end encrypted ⇄ 💻 AgentDeck for Mac ⇄ Antigravity</p>
+<ol>
+  <li><b>On your Mac</b>, make sure Antigravity is installed and you're signed in.</li>
+  <li><a href="/mac">Download AgentDeck for Mac</a>, drag it to Applications and open it. A window shows a QR code and an 8-character code.</li>
+  <li><b>On your phone</b>, install AgentDeck from the App Store or Google Play and tap <b>Scan pairing code</b>, or <b>Enter code instead</b> and type the code.</li>
+  <li>Choose a PIN or fingerprint/Face ID lock. Your Antigravity conversations appear, grouped by project, and you can send prompts, watch the agent work, review changes and approve commands.</li>
+</ol>
+<p class="muted" style="margin-bottom:0">Installed the phone app first? On the welcome screen tap <b>Send the download link to my Mac</b>.</p>
+</div>
+
+<h2 id="faq">Common questions</h2>
+<details><summary>Does my phone need to be on the same Wi-Fi as my Mac?</summary><p>No. After pairing, AgentDeck works on mobile data or any Wi-Fi. At home it connects directly; anywhere else it goes through our relay, which only forwards end-to-end encrypted data it cannot read. Typed pairing codes work from anywhere too.</p></details>
+<details><summary>Does my Mac need to stay on?</summary><p>Yes: the agent runs on your Mac, so it must be on, awake and online, with AgentDeck in the menu bar. To keep it awake while plugged in: System Settings → Battery (or Energy) → prevent automatic sleeping when the display is off.</p></details>
+<details><summary>Is my code sent to AgentDeck's servers?</summary><p>No. Prompts, code and agent output go only between your phone and your Mac, end-to-end encrypted. See the <a href="/privacy">privacy policy</a>.</p></details>
+<details><summary>Why am I never asked to approve commands?</summary><p>Antigravity only waits for approval when its agent settings ask for review of terminal commands. With "auto-run", commands run straight away and there is nothing to approve.</p></details>
+<details><summary>Can I use it with Windows, Linux or an Intel Mac?</summary><p>Yes, with the Terminal installer: see <a href="/install">other computers</a>. The Mac app is for Apple silicon Macs.</p></details>
+<details><summary>Can I pair more than one phone?</summary><p>Yes. Menu-bar icon → <b>Pair a phone…</b> on your Mac. One subscription covers up to 3 computers.</p></details>
+<details><summary>I lost my phone</summary><p>On your Mac: menu-bar icon → <b>Open dashboard</b> → remove the phone. It can no longer connect.</p></details>
+<details><summary>How do I update?</summary><p>The phone app updates through the App Store or Google Play. When a newer AgentDeck for Mac is out, the menu-bar icon shows <b>Update available</b>, the dashboard shows a notice and your phone tells you. Download the new version from <a href="/mac">the Mac page</a> and replace the old app.</p></details>
+<details><summary>How do I uninstall?</summary><p>Mac app: menu-bar icon → turn off <b>Start at login</b> → <b>Quit AgentDeck</b>, then move AgentDeck from Applications to the Bin. Terminal install: run <code>node ~/.agentdeck/bin/agentdeck-host.cjs uninstall</code>.</p></details>
+
+<h2 id="trouble">Troubleshooting</h2>
+<details><summary>"That code was not found"</summary><p>Codes last 10 minutes. On your Mac, click <b>New code</b> in the pairing window (menu-bar icon → Pair a phone…) and type the new one. Check your Mac is online.</p></details>
+<details><summary>The phone says my Mac is offline</summary><ol><li>Wake the Mac and check the AgentDeck icon is in the menu bar (open AgentDeck from Applications if not).</li><li>Check the Mac has internet.</li><li>On the phone, pull down on the conversation list to retry.</li></ol></details>
+<details><summary>"Antigravity isn't running" / no conversations</summary><p>Open Antigravity and sign in. Then menu-bar icon → <b>Check Antigravity</b>: it tests every part AgentDeck uses and says which one fails (useful to include when you contact us).</p></details>
+<details><summary>macOS says it can't check AgentDeck for malicious software</summary><p>Open System Settings → Privacy &amp; Security, scroll down and click <b>Open Anyway</b> next to AgentDeck.</p></details>
+<details><summary>Work from the phone doesn't show in Antigravity</summary><p>Update AgentDeck for Mac to 1.2 or newer. If an old conversation still looks out of date, quit and reopen Antigravity.</p></details>
+
+<h2 id="billing">Billing and licenses</h2>
+<details><summary>What does it cost?</summary><p>The phone app is free. AgentDeck Pro for your computer is a monthly subscription: see <a href="/pricing">pricing</a>.</p></details>
+<details><summary>Where is my license key?</summary><p>It's shown after checkout, printed on your invoices, and on the dashboard of any computer you activated. Lost it? <a href="#contact">Contact us</a> with your billing email.</p></details>
+<details><summary>How do I cancel or change my card?</summary><p>On your Mac: menu-bar icon → <b>Open dashboard</b> → <b>Manage billing</b>. You keep access until the end of the paid month.</p></details>
+
+<h2 id="contact">Contact us</h2>
+<div class="card"><p style="margin:0">Use <b>Help &amp; support → Contact support</b> in the phone app (it can attach your app and Mac versions), or the <a href="/support">support form</a>. We aim to reply within one business day.</p></div>
+<p class="muted" style="font-size:13px">AgentDeck is an independent companion app and is not affiliated with Google or Antigravity.</p>
+</main></body></html>
