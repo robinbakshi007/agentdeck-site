@@ -10490,7 +10490,41 @@ var AntigravityError = class extends Error {
   }
 };
 var ANTIGRAVITY_BINARY = /[\\/]extensions[\\/]antigravity[\\/]bin[\\/]language_server_[a-z0-9_]+(\.exe)?$/i;
+function linuxProcesses(proc = "/proc") {
+  const out = [];
+  for (const d of (0, import_fs.readdirSync)(proc)) {
+    if (!/^\d+$/.test(d)) continue;
+    try {
+      const command = (0, import_fs.readFileSync)((0, import_path.join)(proc, d, "cmdline"), "utf8").split("\0").filter(Boolean).join(" ");
+      if (!command) continue;
+      const uid = Number((0, import_fs.readFileSync)((0, import_path.join)(proc, d, "status"), "utf8").match(/^Uid:\s+(\d+)/m)?.[1] ?? -1);
+      out.push({ pid: Number(d), uid, command });
+    } catch {
+    }
+  }
+  return out;
+}
+function linuxListeningPorts(pid, proc = "/proc") {
+  const inodes = /* @__PURE__ */ new Set();
+  for (const fd of (0, import_fs.readdirSync)((0, import_path.join)(proc, String(pid), "fd"))) {
+    try {
+      const m = (0, import_fs.readlinkSync)((0, import_path.join)(proc, String(pid), "fd", fd)).match(/^socket:\[(\d+)\]$/);
+      if (m) inodes.add(m[1]);
+    } catch {
+    }
+  }
+  const ports = [];
+  for (const line of (0, import_fs.readFileSync)((0, import_path.join)(proc, "net", "tcp"), "utf8").split("\n").slice(1)) {
+    const c = line.trim().split(/\s+/);
+    if (c.length > 9 && c[3] === "0A" && c[1].startsWith("0100007F:") && inodes.has(c[9])) ports.push(parseInt(c[1].split(":")[1], 16));
+  }
+  return ports;
+}
 async function listLanguageServerProcesses() {
+  if (process.platform === "linux") {
+    const uid2 = process.getuid?.();
+    return linuxProcesses().filter((p) => /--csrf_token/.test(p.command) && (uid2 === void 0 || p.uid === uid2) && ANTIGRAVITY_BINARY.test(p.command.split(" --")[0])).map((p) => ({ pid: p.pid, command: p.command }));
+  }
   if (process.platform === "win32") {
     const { stdout: stdout2 } = await execFileAsync(
       "powershell.exe",
@@ -10514,6 +10548,11 @@ async function listeningPorts(pid) {
       return stdout2.split(/\r?\n/).map((l) => l.trim().split(/\s+/)).filter((c) => c[3] === "LISTENING" && c[4] === String(pid) && /^127\.0\.0\.1:/.test(c[1] ?? "")).map((c) => Number(c[1].split(":")[1]));
     }
     if (process.platform === "linux") {
+      try {
+        const ports = linuxListeningPorts(pid);
+        if (ports.length) return ports;
+      } catch {
+      }
       try {
         const { stdout: stdout2 } = await execFileAsync("ss", ["-ltnpH"]);
         const ports = stdout2.split("\n").filter((l) => l.includes(`pid=${pid},`)).map((l) => Number(l.trim().split(/\s+/)[3]?.split(":").pop()));
@@ -10717,7 +10756,10 @@ var AntigravityBridge = class {
   }
   async getSteps(cascadeId, stepOffset) {
     const res = await this.callOwned(cascadeId, "GetCascadeTrajectorySteps", { cascadeId, stepOffset }, 6e4);
-    return res.steps ?? [];
+    const steps = res.steps ?? [];
+    const first = steps[0]?.metadata?.sourceTrajectoryStepInfo;
+    const base = first && (first.cascadeId === void 0 || first.cascadeId === cascadeId) ? Number(first.stepIndex ?? 0) : stepOffset;
+    return base < stepOffset ? steps.slice(stepOffset - base) : steps;
   }
   async listModels() {
     const [first] = await this.forEachServer((s) => connectCall(s, "GetCascadeModelConfigData", {}, 1e4));
@@ -11141,7 +11183,7 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.1.4";
+var HOST_VERSION = "1.2.0";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -11637,11 +11679,18 @@ function deriveSessionKey(mySecret, theirPublic, pairingKey) {
   return import_tweetnacl.default.hash(buf).slice(0, 32);
 }
 var CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+var PAIRING_CODE_LENGTH = 8;
 function newPairingCode() {
-  const bytes = import_tweetnacl.default.randomBytes(16);
+  const bytes = import_tweetnacl.default.randomBytes(PAIRING_CODE_LENGTH);
   let code = "";
-  for (let i = 0; i < 16; i++) code += CODE_ALPHABET[bytes[i] & 31];
+  for (let i = 0; i < PAIRING_CODE_LENGTH; i++) code += CODE_ALPHABET[bytes[i] & 31];
   return code.match(/.{4}/g).join("-");
+}
+function rendezvousId(code) {
+  const h = import_tweetnacl.default.hash(utf8Encode(`agentdeck-rendezvous-v1:${normalizePairingCode(code)}`));
+  let s = "";
+  for (let i = 0; i < 16; i++) s += h[i].toString(16).padStart(2, "0");
+  return s;
 }
 function normalizePairingCode(code) {
   return code.toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
@@ -11943,6 +11992,21 @@ var RelayLink = class {
   timer = null;
   status = "off";
   lastError = null;
+  /** Lets a phone find this host over the internet by its typed pairing code (only a hash is sent). */
+  async advertise(rendezvousId2) {
+    const base = this.url.replace(/^ws/, "http").replace(/\/+$/, "");
+    try {
+      const res = await fetch(`${base}/rendezvous`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ id: rendezvousId2, hostId: this.hostId }),
+        signal: AbortSignal.timeout(8e3)
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
   start() {
     this.stopped = false;
     this.connect();
@@ -12073,6 +12137,68 @@ $('relayBtn').onclick=async()=>{const r=await post('/local/relay',{url:$('relay'
 fetch('/local/compat').then(r=>r.json()).then(c=>{$('compat').innerHTML=c.ok?'<span class="dot" style="background:var(--ok)"></span>Antigravity compatibility check passed':'<b style="color:var(--bad)">Antigravity changed in a way AgentDeck does not support yet:</b><br>'+c.checks.filter(x=>!x.ok).map(x=>esc(x.name+': '+x.detail)).join('<br>')+'<br>Update AgentDeck or contact support.';}).catch(()=>{});
 refresh();setInterval(refresh,4000);
 </script></body></html>`;
+}
+function pairPageHtml() {
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pair your phone \xB7 AgentDeck</title>
+<style>
+:root{--bg:#FAF8F5;--surface:#fff;--border:#E5DFD3;--text:#1F1B16;--muted:#8A7E6E;--accent:#B45309;--ok:#16A34A}
+@media (prefers-color-scheme:dark){:root{--bg:#0B0F17;--surface:#141A23;--border:#263142;--text:#F1F5F9;--muted:#94A3B8;--accent:#F59E0B}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-align:center}
+main{max-width:440px;margin:0 auto;padding:28px 18px}h1{font-size:22px;margin:4px 0 6px}.muted{color:var(--muted)}
+#qr{background:#fff;border-radius:16px;padding:14px;width:280px;height:280px;margin:18px auto;border:1px solid var(--border)}#qr svg{width:100%;height:100%}
+.code{font:700 30px/1.2 ui-monospace,Menlo,monospace;letter-spacing:3px;margin:6px 0}
+ol{text-align:left;margin:16px auto;max-width:360px;padding-left:20px}li{margin:6px 0}
+.ok{font-size:54px}.pill{display:inline-block;padding:3px 10px;border-radius:999px;background:rgba(22,163,74,.12);color:var(--ok);font-weight:700;font-size:13px}
+button{font:inherit;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;padding:9px 16px;cursor:pointer}
+a{color:var(--accent)}
+</style></head><body><main>
+<div id="waiting">
+  <h1>Pair your phone</h1>
+  <p class="muted">Open the AgentDeck app on your phone and tap <b>Scan pairing code</b>.</p>
+  <div id="qr"></div>
+  <p class="muted" style="margin:0">No camera? In the app tap <b>Enter code instead</b> and type:</p>
+  <div class="code" id="code">\xB7\xB7\xB7\xB7-\xB7\xB7\xB7\xB7</div>
+  <p id="anywhere" class="muted" style="font-size:13px"></p>
+  <p class="muted" style="font-size:13px">Code expires in <span id="left">10:00</span>. <button id="new" style="padding:4px 10px;font-size:13px">New code</button></p>
+  <ol class="muted" style="font-size:14px">
+    <li>Don't have the app? Search <b>AgentDeck</b> on the App Store or Google Play.</li>
+    <li>Once paired, your phone keeps working away from home: on mobile data or any Wi-Fi.</li>
+  </ol>
+</div>
+<div id="done" hidden>
+  <div class="ok">\u2705</div>
+  <h1>Paired with <span id="phone">your phone</span></h1>
+  <p class="muted">You can close this window. AgentDeck keeps running in the menu bar and starts with your Mac.</p>
+  <p><a href="/">Open the AgentDeck dashboard</a> \xB7 <button id="another">Pair another phone</button></p>
+</div>
+<script>
+const post=(p)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json','X-AgentDeck':'1'},body:'{}'}).then(r=>r.json());
+let expires=0, known=null;
+async function load(){
+  const p=await post('/local/pair');
+  document.getElementById('qr').innerHTML=p.svg;
+  document.getElementById('code').textContent=p.code;
+  document.getElementById('anywhere').innerHTML=p.typedCodeWorksAnywhere?'<span class="pill">Works from anywhere</span> The phone doesn\\'t need to be on this Wi-Fi.':'Typed codes need the phone on this Wi-Fi (remote access is off on the dashboard). Scanning works the same way.';
+  expires=p.expiresAt;
+}
+async function watch(){
+  try{
+    const s=await (await fetch('/local/status')).json();
+    const ids=s.devices.map(d=>d.deviceId);
+    if(known===null) known=ids;
+    const fresh=s.devices.find(d=>!known.includes(d.deviceId));
+    if(fresh){document.getElementById('phone').textContent=fresh.name;document.getElementById('waiting').hidden=true;document.getElementById('done').hidden=false;known=ids;}
+  }catch(e){}
+}
+setInterval(()=>{const s=Math.max(0,Math.round((expires-Date.now())/1000));document.getElementById('left').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');if(expires&&s===0)load();},1000);
+setInterval(watch,1500);
+document.getElementById('new').onclick=()=>fetch('/local/pair/new',{method:'POST',headers:{'Content-Type':'application/json','X-AgentDeck':'1'},body:'{}'}).then(load);
+document.getElementById('another').onclick=()=>{document.getElementById('done').hidden=true;document.getElementById('waiting').hidden=false;load();};
+load();watch();
+</script>
+</main></body></html>`;
 }
 
 // src/live/compat.ts
@@ -12228,8 +12354,11 @@ var HostServer = class {
       }
     };
   }
+  advertised = null;
   async pairingPayload() {
     const code = this.pairing.active && this.pairing.code ? this.pairing.code : this.pairing.open();
+    if (this.advertised?.code !== code) this.advertised = { code, ok: this.relay ? this.relay.advertise(rendezvousId(code)) : Promise.resolve(false) };
+    const typedCodeWorksAnywhere = await this.advertised.ok;
     const qr = encodePairingQr({
       code,
       hostId: this.store.config.hostId,
@@ -12238,7 +12367,7 @@ var HostServer = class {
       relay: this.store.config.relayUrl
     });
     const svg = await import_qrcode.default.toString(qr, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
-    return { code, qr, svg, expiresAt: this.pairing.expiresAt };
+    return { code, qr, svg, expiresAt: this.pairing.expiresAt, typedCodeWorksAnywhere };
   }
   setRelay(url) {
     this.relay?.stop();
@@ -12266,6 +12395,15 @@ var HostServer = class {
         });
         return void res.end(dashboardHtml());
       }
+      if (req.method === "GET" && url.pathname === "/pair") {
+        res.writeHead(200, {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+          "X-Frame-Options": "DENY",
+          "Content-Security-Policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'"
+        });
+        return void res.end(pairPageHtml());
+      }
       if (req.method === "GET" && url.pathname === "/local/compat") {
         if (!this.compat || Date.now() - Date.parse(this.compat.checkedAt) > 10 * 6e4) {
           this.compat = await checkCompatibility(await this.service.bridge.ensureServers());
@@ -12287,6 +12425,10 @@ var HostServer = class {
       }
       if (req.method === "POST" && !isTrustedLocalAction(req, this.port)) return json(res, 403, { error: "Forbidden" });
       if (req.method === "POST" && url.pathname === "/local/pair") return json(res, 200, await this.pairingPayload());
+      if (req.method === "POST" && url.pathname === "/local/pair/new") {
+        this.pairing.close();
+        return json(res, 200, await this.pairingPayload());
+      }
       if (req.method === "POST" && url.pathname === "/local/license") {
         const body = await readBody(req);
         if (!this.service.license) return json(res, 400, { error: "Licensing is not enabled" });
@@ -12627,11 +12769,20 @@ async function status() {
   const s = await localCall("GET", "/local/status");
   console.log(JSON.stringify({ ...s, devices: s.devices.map((d) => `${d.name} (${d.platform})`) }, null, 2));
 }
+function isSea() {
+  try {
+    const sea = process.getBuiltinModule?.("node:sea");
+    return sea?.isSea?.() === true;
+  } catch {
+    return false;
+  }
+}
 function entryCommand() {
-  return { node: process.execPath, script: (0, import_path4.resolve)(process.argv[1]) };
+  if (isSea()) return [process.execPath];
+  return [process.execPath, (0, import_path4.resolve)(process.argv[1])];
 }
 function install() {
-  const { node, script } = entryCommand();
+  const entry = entryCommand();
   const logDir = (0, import_path4.join)((0, import_os5.homedir)(), ".agentdeck");
   (0, import_fs5.mkdirSync)(logDir, { recursive: true, mode: 448 });
   (0, import_fs5.chmodSync)(logDir, 448);
@@ -12645,7 +12796,7 @@ function install() {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.agentdeck.host</string>
-  <key>ProgramArguments</key><array><string>${esc(node)}</string><string>${esc(script)}</string><string>start</string></array>
+  <key>ProgramArguments</key><array>${[...entry, "start"].map((a) => `<string>${esc(a)}</string>`).join("")}</array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
@@ -12672,7 +12823,7 @@ Description=AgentDeck host
 After=network-online.target
 
 [Service]
-ExecStart="${node}" "${script}" start
+ExecStart=${entry.map((a) => `"${a}"`).join(" ")} start
 Restart=always
 
 [Install]
@@ -12685,7 +12836,7 @@ WantedBy=default.target
   Dashboard: http://localhost:${PORT}/`);
   } else if (process.platform === "win32") {
     const startup = (0, import_path4.join)(process.env["APPDATA"] ?? (0, import_os5.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
-    (0, import_fs5.writeFileSync)((0, import_path4.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run """${node}"" ""${script}"" start", 0, False
+    (0, import_fs5.writeFileSync)((0, import_path4.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${entry.map((a) => `""${a}""`).join(" ")} start", 0, False
 `);
     console.log(`Installed in your Startup folder. Sign out and back in, or run: agentdeck-host start`);
   } else {

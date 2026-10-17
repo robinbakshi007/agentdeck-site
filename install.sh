@@ -3,7 +3,8 @@
 set -e
 BASE="https://agentdeck.finnova.com.au"
 if ! command -v node >/dev/null 2>&1; then
-  echo "AgentDeck needs Node.js 20 or newer. Install it from https://nodejs.org (or: brew install node), then run this again."
+  echo "This Terminal installer needs Node.js 20 or newer."
+  echo "Easier: download the AgentDeck Mac app (no Node needed) from https://agentdeck.finnova.com.au/mac"
   exit 1
 fi
 MAJOR=$(node -p 'process.versions.node.split(".")[0]')
@@ -29,5 +30,15 @@ chmod +x "$DIR/agentdeck-host.cjs"
 # Stop an older copy if one is running, then install the login item (starts it now and at every login).
 node "$DIR/agentdeck-host.cjs" uninstall >/dev/null 2>&1 || true
 node "$DIR/agentdeck-host.cjs" install
+# Wait for the host to answer, then show the pairing code right away (browser window + Terminal QR).
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  curl -fs http://127.0.0.1:48632/api/health >/dev/null 2>&1 && break
+  sleep 1
+done
 echo ""
-echo "Next: open http://localhost:48632 and tap 'Show pairing code', then scan it with the AgentDeck app."
+echo "AgentDeck is running and starts with your computer."
+echo "Scan this with the AgentDeck app on your phone (or type the code shown under it):"
+node "$DIR/agentdeck-host.cjs" pair || true
+if command -v open >/dev/null 2>&1; then open "http://localhost:48632/pair" >/dev/null 2>&1 || true
+elif command -v xdg-open >/dev/null 2>&1; then xdg-open "http://localhost:48632/pair" >/dev/null 2>&1 || true
+fi
