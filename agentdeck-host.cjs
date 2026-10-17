@@ -10585,14 +10585,14 @@ async function discoverLanguageServers() {
       for (const port of ports) {
         try {
           await connectCall({ port, csrf }, "GetUserStatus", {}, 3e3);
-          found.push({ pid: p.pid, port, csrf, workspaceId: arg(p.command, "workspace_id") });
+          found.push({ pid: p.pid, port, csrf, workspaceId: arg(p.command, "workspace_id"), primary: !/--parent_pipe_path[= ]/.test(p.command) && !arg(p.command, "workspace_id") });
           return;
         } catch {
         }
       }
     })
   );
-  return found.sort((a, b) => Number(!!a.workspaceId) - Number(!!b.workspaceId));
+  return found.sort((a, b) => Number(!!b.primary) - Number(!!a.primary) || Number(!!a.workspaceId) - Number(!!b.workspaceId));
 }
 var AntigravityBridge = class {
   constructor(discover = discoverLanguageServers) {
@@ -10609,7 +10609,9 @@ var AntigravityBridge = class {
   async ensureServers(force = false) {
     if (!force && this.servers.length && Date.now() - this.lastDiscovery < 6e4) return this.servers;
     if (!this.discovering) {
-      this.discovering = this.discover().then((s) => {
+      this.discovering = this.discover().then((all) => {
+        const primary = all.filter((x) => x.primary);
+        const s = primary.length ? primary.slice(0, 1) : all;
         this.servers = s;
         this.lastDiscovery = Date.now();
         this.lastError = s.length ? null : "Antigravity is not running on this computer";
@@ -10708,6 +10710,10 @@ var AntigravityBridge = class {
       }
     }
     return n;
+  }
+  /** Opens the conversation in Antigravity's Agent panel on the Mac. */
+  async focus(cascadeId) {
+    await this.callOwned(cascadeId, "SmartFocusConversation", { cascadeId }, 1e4);
   }
   async getSteps(cascadeId, stepOffset) {
     const res = await this.callOwned(cascadeId, "GetCascadeTrajectorySteps", { cascadeId, stepOffset }, 6e4);
@@ -11135,7 +11141,7 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.1.2";
+var HOST_VERSION = "1.1.3";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -11513,6 +11519,9 @@ var AgentDeckService = class extends import_events.EventEmitter {
           return await this.send(p);
         case "conversation.start":
           return await this.startConversation(p);
+        case "conversation.focus":
+          await this.bridge.focus(this.requireConversation(p?.id));
+          return { ok: true };
         case "conversation.cancel":
           return await this.cancel(p?.id);
         case "approval.respond":
