@@ -12738,7 +12738,7 @@ var UpdateChecker = class {
   info() {
     const v = this.latest;
     const mac = this.opts.isMacApp ?? process.platform === "darwin";
-    const fallback = mac ? "https://agentdeck.finnova.com.au/mac" : "https://agentdeck.finnova.com.au/install";
+    const fallback = mac ? "https://agentdeck.finnova.com.au/mac" : "https://agentdeck.finnova.com.au/download";
     const given = mac ? v?.macUrl : v?.installUrl;
     const url = given && /^https:\/\/agentdeck\.finnova\.com\.au\//.test(given) ? given : fallback;
     const latest = v?.host ?? null;
