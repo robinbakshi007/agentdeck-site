@@ -11183,7 +11183,7 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.2.1";
+var HOST_VERSION = "1.2.2";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -11314,7 +11314,7 @@ var AgentDeckService = class extends import_events.EventEmitter {
       if (!isSettled(step) && newUnsettled < 0) newUnsettled = idx;
       if (item?.kind === "approval" && !t.notifiedApprovals.has(idx)) {
         t.notifiedApprovals.add(idx);
-        void this.notify("Approval needed", "The agent is waiting for you. Open AgentDeck to review.", t.id);
+        void this.notify("Approval needed", "The agent is waiting for you. Approve or deny from here, or open AgentDeck to review.", t.id, { categoryId: "approval", approvalIdx: String(idx) });
       }
     });
     for (const [idx, step] of t.raw) if (isSettled(step)) t.raw.delete(idx);
@@ -11338,10 +11338,12 @@ var AgentDeckService = class extends import_events.EventEmitter {
       this.emit("conversations", this.list);
     }
   }
-  async notify(title, body, conversationId) {
+  async notify(title, body, conversationId, opts = {}) {
     const tokens = this.store.listDevices().map((d) => d.pushToken).filter((t) => !!t && isExpoPushToken(t));
     if (!tokens.length) return;
-    await this.push(tokens.map((to) => ({ to, title, body, data: { conversationId } })));
+    const data = { conversationId };
+    if (opts.approvalIdx) data["approvalIdx"] = opts.approvalIdx;
+    await this.push(tokens.map((to) => ({ to, title, body, data, ...opts.categoryId ? { categoryId: opts.categoryId } : {} })));
   }
   // ---------- RPC surface ----------
   async hostInfo() {
