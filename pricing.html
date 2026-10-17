@@ -4,6 +4,7 @@
 <nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">AgentDeck</a><a href="/pricing">Pricing</a><a href="/install">Install</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
 <h1>AgentDeck Pro</h1>
 <p class="muted">One subscription covers the AgentDeck host on up to 3 of your computers, the phone apps on iPhone and Android, and remote access from anywhere.</p>
+<p id="checkout-error" hidden class="card" style="border-color:#DC2626;margin:0 0 12px">Checkout couldn't start just now. Please try again in a minute, or <a href="/support">contact support</a>.</p>
 <div class="card" style="display:grid;gap:10px">
   <p style="margin:0"><span id="price" style="font-size:36px;font-weight:800">$9.99</span> <span class="muted">per month</span></p>
   <p id="founding" class="muted" style="margin:0">Checking founding-member offer…</p>
@@ -17,8 +18,10 @@
   <p class="muted" style="margin:0;font-size:14px">Secure checkout by Stripe. Cancel anytime from the billing link on your AgentDeck dashboard; you keep access until the end of the paid month.</p>
 </div>
 <h2>How it works</h2>
-<ol><li>Subscribe here. You get a license key straight away (and Stripe emails your receipt).</li><li><a href="/install">Install the host</a> on your Mac and paste the key on its dashboard.</li><li>Install the free AgentDeck app on your phone and scan the pairing code.</li></ol>
+<ol><li>Subscribe here. Your license key appears straight away and is printed on your future invoices.</li><li><a href="/install">Install the host</a> on your Mac and paste the key on its dashboard.</li><li>Install the free AgentDeck app on your phone and scan the pairing code.</li></ol>
+<p class="muted" style="font-size:14px">Lost your license key? It's on your AgentDeck dashboard (<code>http://localhost:48632</code>) on any computer you activated, and on your invoices. Otherwise <a href="/support">contact support</a> with your billing email.</p>
 <script>
+if(new URLSearchParams(location.search).get('error')==='checkout')document.getElementById('checkout-error').hidden=false;
 fetch('https://agentdeck-billing.finnova.com.au/v1/pricing').then(r=>r.json()).then(p=>{
   const cur=(c)=>new Intl.NumberFormat(undefined,{style:'currency',currency:(p.currency||'usd').toUpperCase()}).format(c/100);
   document.getElementById('price').textContent=cur(p.priceCents||999);

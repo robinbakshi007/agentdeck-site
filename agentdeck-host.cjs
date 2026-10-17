@@ -11141,7 +11141,7 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.1.3";
+var HOST_VERSION = "1.1.4";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -12431,6 +12431,10 @@ var LICENSE_PUBLIC_KEY = process.env["AGENTDECK_LICENSE_PUBLIC_KEY"] || "Gc8uSIb
 var REFRESH_MS = 12 * 3600 * 1e3;
 var OFFLINE_GRACE_MS = 14 * 86400 * 1e3;
 var PAST_DUE_GRACE_MS = 7 * 86400 * 1e3;
+function normalizeKey(k) {
+  const c = k.toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^ADK/, "");
+  return c.length === 16 ? `ADK-${c.match(/.{4}/g).join("-")}` : "";
+}
 var LicenseManager = class {
   constructor(store, opts = {}) {
     this.store = store;
@@ -12478,9 +12482,15 @@ var LicenseManager = class {
     } else if ((s.status === "active" || s.status === "trialing") && age < OFFLINE_GRACE_MS) {
       active = true;
       message = "AgentDeck Pro is active.";
-    } else if (s.status === "past_due" && age < PAST_DUE_GRACE_MS) {
+    } else if (s.status === "past_due" && age < OFFLINE_GRACE_MS && this.now() - (this.cache.pastDueSince ?? this.now()) < PAST_DUE_GRACE_MS) {
       active = true;
       message = "Your last payment failed. Update your card to keep AgentDeck working.";
+    } else if (s.status === "past_due" || s.status === "unpaid") {
+      message = "Your payment failed and the grace period has ended. Update your card to turn AgentDeck back on.";
+    } else if (s.status === "incomplete" || s.status === "incomplete_expired") {
+      message = "The first payment for this subscription did not complete. Subscribe again from the pricing page.";
+    } else if (s.status === "paused") {
+      message = "This subscription is paused. Resume it to keep using AgentDeck.";
     } else if (s.status === "too_many_hosts") {
       message = "This license is already used on 3 computers.";
     } else if (s.status === "canceled") {
@@ -12494,7 +12504,8 @@ var LicenseManager = class {
   }
   /** Checks a key with the billing service and stores the signed answer. */
   async activate(rawKey) {
-    const key = rawKey.trim().toUpperCase();
+    const key = normalizeKey(rawKey);
+    if (!key) throw new Error("That doesn\u2019t look like a license key. It looks like ADK-XXXX-XXXX-XXXX-XXXX.");
     const res = await this.f(`${this.url}/v1/license/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -12502,16 +12513,26 @@ var LicenseManager = class {
     });
     if (!res.ok) throw new Error(`The license service answered ${res.status}. Try again in a minute.`);
     const signed = await res.json();
-    const normalized = JSON.parse(signed.payload).key || key;
-    this.save({ key: normalized, payload: signed.payload, signature: signed.signature });
-    if (!this.statement()) throw new Error("The license answer failed its signature check.");
+    const pub = fromBase64(this.opts.publicKey ?? LICENSE_PUBLIC_KEY);
+    if (!signed?.payload || !signed.signature || !import_tweetnacl3.default.sign.detached.verify(utf8Encode(signed.payload), fromBase64(signed.signature), pub)) {
+      throw new Error("The license answer failed its signature check.");
+    }
+    const st = JSON.parse(signed.payload);
+    if (st.hostId !== this.store.config.hostId || st.key && st.key !== key) throw new Error("The license answer was for a different key or computer.");
+    const switching = this.cache.key && this.cache.key !== key;
+    if (switching && (st.status === "invalid" || st.status === "too_many_hosts")) {
+      throw new Error(st.status === "invalid" ? "This license key is not valid. Your current license was kept." : "That license is already used on 3 computers. Your current license was kept.");
+    }
+    const pastDueSince = st.status === "past_due" ? (this.cache.key === key ? this.cache.pastDueSince : void 0) ?? this.now() : void 0;
+    this.save({ key, payload: signed.payload, signature: signed.signature, pastDueSince });
     return this.state();
   }
   /** Learns whether sales are open, then re-verifies the saved key. Never throws. */
   async refresh() {
     try {
       const h = await (await this.f(`${this.url}/health`)).json();
-      if (h.configured && !this.cache.enforced) this.save({ enforced: true });
+      const testing = process.env["AGENTDECK_LICENSE_TEST"] === "1";
+      if (h.configured && (h.live || testing) && !this.cache.enforced) this.save({ enforced: true });
     } catch {
     }
     if (this.cache.key) await this.activate(this.cache.key).catch(() => void 0);

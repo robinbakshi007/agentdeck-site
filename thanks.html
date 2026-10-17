@@ -6,7 +6,7 @@
 <div class="card" style="display:grid;gap:10px">
   <p id="status" style="margin:0">Getting your license key…</p>
   <p id="keywrap" hidden style="margin:0"><code id="key" style="font-size:20px;padding:6px 10px;user-select:all"></code> <button id="copy" style="font:inherit;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:8px;padding:6px 12px;cursor:pointer">Copy</button></p>
-  <p class="muted" style="margin:0">Keep this key: it's how your computer proves your subscription. Your receipt is on its way from Stripe.</p>
+  <p class="muted" style="margin:0">Keep this key: it's how your computer proves your subscription. It's also printed on your future invoices<span id="emailed" hidden>, and we've emailed it to you</span>. Stripe sends your payment receipt separately.</p>
 </div>
 <h2>Activate it</h2>
 <ol>
@@ -16,16 +16,18 @@
 </ol>
 <script>
 const id=new URLSearchParams(location.search).get('session_id');
-const show=(k)=>{document.getElementById('status').textContent='Your AgentDeck Pro license key:';document.getElementById('key').textContent=k;document.getElementById('keywrap').hidden=false;document.getElementById('cmd').textContent='node ~/.agentdeck/bin/agentdeck-host.cjs activate '+k;};
+const show=(k)=>{try{localStorage.setItem('agentdeck.key.'+id,k)}catch(e){}document.getElementById('status').textContent='Your AgentDeck Pro license key:';document.getElementById('key').textContent=k;document.getElementById('keywrap').hidden=false;document.getElementById('cmd').textContent='node ~/.agentdeck/bin/agentdeck-host.cjs activate '+k;};
 let tries=0;
 async function poll(){
-  if(!id){document.getElementById('status').textContent='No checkout found. If you just paid, check your email from Stripe or contact support.';return;}
+  if(!id){document.getElementById('status').innerHTML='No checkout found. If you just paid, your key is on your invoices, or <a href="/support">contact support</a> with your billing email.';return;}
+  try{const saved=localStorage.getItem('agentdeck.key.'+id);if(saved)return show(saved);}catch(e){}
   try{const r=await (await fetch('https://agentdeck-billing.finnova.com.au/v1/session?session_id='+encodeURIComponent(id))).json();
     if(r.key) return show(r.key);
   }catch(e){}
   if(++tries<20) setTimeout(poll,2000); else document.getElementById('status').innerHTML='Your payment went through, but the key is taking a while. Refresh in a minute or <a href="/support">contact support</a>.';
 }
 poll();
+fetch('https://agentdeck-billing.finnova.com.au/health').then(r=>r.json()).then(h=>{if(h.emailsKeys)document.getElementById('emailed').hidden=false;}).catch(()=>{});
 document.getElementById('copy').onclick=async()=>{try{await navigator.clipboard.writeText(document.getElementById('key').textContent);document.getElementById('copy').textContent='Copied';}catch(e){}};
 </script>
 </main></body></html>
