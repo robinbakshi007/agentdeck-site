@@ -3,7 +3,7 @@
 <title>Pulsar Privacy Policy</title><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css"></head><body><main>
 <nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
 <h1>Privacy Policy</h1>
-<p class="muted">Effective 10 October 2026. Applies to the Pulsar mobile app, the Pulsar host software, and the Pulsar relay, provided by Finnova ("we").</p>
+<p class="muted">Effective 19 October 2026. Applies to the Pulsar mobile app, the Pulsar computer apps and Antigravity extension, the Pulsar website and the Pulsar relay, provided by Finnova Ltd, Victoria, Australia ("Finnova", "we").</p>
 
 <h2>The short version</h2>
 <p>Your code, prompts, conversations and files stay on your computer and your phone. We do not run servers that can read them, we do not sell data, and we do not show ads or use tracking or analytics SDKs. The only data we receive is anonymous crash reports, which you can turn off, and messages you send us.</p>
@@ -15,6 +15,7 @@
 <li><b>Settings</b> (theme, model choice, notification and Face ID preferences) are stored on your phone.</li>
 </ul>
 
+<p><b>Offline copy.</b> So you can still read recent conversations when your computer is out of reach, the phone keeps a copy of your conversation list and recent messages, encrypted with a key held in the phone's secure storage. It never leaves the phone and is deleted when you unpair or uninstall.</p>
 <h2>Data that passes through services</h2>
 <ul>
 <li><b>Relay (remote access).</b> When your phone is not on the same network as your computer, traffic is forwarded by the Pulsar relay, hosted on Cloudflare. Traffic is end-to-end encrypted with a key only your phone and computer hold; the relay sees only a random host identifier, connection times, IP addresses and message sizes, and keeps none of the content. It stores a one-way hash of your host's relay token so no one else can impersonate your computer.</li>
@@ -27,7 +28,9 @@
 <h2>Crash reports and support messages</h2>
 <ul>
 <li><b>Crash reports.</b> When the app or the host hits an unexpected error, it sends an anonymous report to our crash inbox (hosted on Cloudflare): the app version, the platform and OS version, and the error message and stack trace. Home-folder paths, email addresses and anything that looks like a key or token are removed before sending. Reports never include your prompts, code, conversations or file contents, and are deleted after 90 days. Turn this off in the app under Settings &rarr; Send anonymous crash reports, or on the computer by setting <code>AGENTDECK_CRASH_REPORTS=0</code>.</li>
-<li><b>Support messages.</b> If you contact us through the support form, we receive the email address and message you enter, and keep them for 90 days.</li>
+<li><b>Support messages.</b> If you contact us through the app or the support form, we receive the email address and message you enter, plus (if you leave "include diagnostics" on) the app and computer versions and connection status. We keep them for 90 days.</li>
+<li><b>Early-access waitlist.</b> If you join the waitlist, we keep your email address and phone type (Android or iPhone) to tell you when Pulsar launches and, for Android, to invite you to test it. We delete it when the app launches publicly or when you ask.</li>
+<li><b>Emails we send.</b> Notification emails (your license key, replies to your messages) are delivered by Resend, our email provider, which processes your email address only to deliver them. We do not send marketing email unless you joined the waitlist.</li>
 </ul>
 
 <h2>Permissions the app asks for</h2>
@@ -43,11 +46,17 @@
 <h2>Retention and deletion</h2>
 <p>Unpairing a phone, or removing it from the host dashboard, deletes its key. Uninstalling the app deletes data stored on the phone. Deleting <code>~/.agentdeck</code> removes all host data. The relay keeps no message content; its pinned host-token hash can be removed on request.</p>
 
+<h2 id="delete">How to delete your data</h2>
+<p>On your phone: Settings → Unpair this phone, then uninstall the app. On your computer: remove the phone from the Pulsar dashboard and uninstall Pulsar. To delete anything we hold (license and billing record, waitlist entry, support messages), contact us through the <a href="/support">support page</a> from the email address you used; we delete it within 30 days, except billing records we must keep for tax law.</p>
+
 <h2>Children</h2>
 <p>Pulsar is a developer tool and is not directed at children under 13 (or the equivalent minimum age in your country).</p>
 
 <h2>Your rights</h2>
 <p>Because we do not hold your content or account profile, most requests can be fulfilled on your own devices. For anything else, including access, correction or deletion requests under the Australian Privacy Act, GDPR or CCPA, contact us through the <a href="/support">support page</a>.</p>
+
+<h2>Who we are</h2>
+<p>Pulsar is made by Finnova Ltd, Victoria, Australia. Contact us any time through the <a href="/support">support page</a> or the Help &amp; support screen in the app.</p>
 
 <h2>Changes</h2>
 <p>We will post changes here and update the effective date. Material changes will be announced in the app.</p>
