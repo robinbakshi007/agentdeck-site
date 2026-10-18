@@ -12166,7 +12166,7 @@ a{color:var(--accent)}
 <div id="waiting">
   <h1>Pair your phone</h1>
   <p class="muted">Open the AgentDeck app on your phone and tap <b>Scan pairing code</b>.</p>
-  <div id="qr"></div>
+  <div id="qr"><p class="muted" style="margin-top:110px">Making your code\u2026</p></div>
   <p class="muted" style="margin:0">No camera? In the app tap <b>Enter code instead</b> and type:</p>
   <div class="code" id="code">\xB7\xB7\xB7\xB7-\xB7\xB7\xB7\xB7</div>
   <p id="anywhere" class="muted" style="font-size:13px"></p>
@@ -12367,7 +12367,10 @@ var HostServer = class {
   async pairingPayload() {
     const code = this.pairing.active && this.pairing.code ? this.pairing.code : this.pairing.open();
     if (this.advertised?.code !== code) this.advertised = { code, ok: this.relay ? this.relay.advertise(rendezvousId(code)) : Promise.resolve(false) };
-    const typedCodeWorksAnywhere = await this.advertised.ok;
+    const typedCodeWorksAnywhere = await Promise.race([
+      this.advertised.ok,
+      new Promise((r) => setTimeout(() => r(this.relay?.status === "connected"), 800))
+    ]);
     const qr = encodePairingQr({
       code,
       hostId: this.store.config.hostId,
