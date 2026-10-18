@@ -11183,7 +11183,7 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.2.4";
+var HOST_VERSION = "1.2.5";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -12407,7 +12407,7 @@ a{color:var(--accent)}
   <p id="anywhere" class="muted" style="font-size:13px"></p>
   <p class="muted" style="font-size:13px">Code expires in <span id="left">10:00</span>. <button id="new" style="padding:4px 10px;font-size:13px">New code</button></p>
   <ol class="muted" style="font-size:14px">
-    <li>Don't have the app? Search <b>AgentDeck</b> on the App Store or Google Play.</li>
+    <li>Don't have the app yet? The AgentDeck phone app is in early access and coming soon to the App Store and Google Play: <a href="https://agentdeck.finnova.com.au/early-access" target="_blank" rel="noopener">join the waitlist</a>.</li>
     <li>Once paired, your phone keeps working away from home: on mobile data or any Wi-Fi.</li>
   </ol>
 </div>
