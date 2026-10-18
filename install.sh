@@ -1,20 +1,20 @@
 #!/bin/sh
-# AgentDeck host installer:  curl -fsSL https://agentdeck.finnova.com.au/install.sh | sh
+# Pulsar host installer:  curl -fsSL https://agentdeck.finnova.com.au/install.sh | sh
 set -e
 BASE="https://agentdeck.finnova.com.au"
 if ! command -v node >/dev/null 2>&1; then
   echo "This Terminal installer needs Node.js 20 or newer."
-  echo "Easier: download the AgentDeck Mac app (no Node needed) from https://agentdeck.finnova.com.au/mac"
+  echo "Easier: download the Pulsar Mac app (no Node needed) from https://agentdeck.finnova.com.au/mac"
   exit 1
 fi
 MAJOR=$(node -p 'process.versions.node.split(".")[0]')
 if [ "$MAJOR" -lt 20 ]; then
-  echo "AgentDeck needs Node.js 20 or newer (you have $(node -v))."
+  echo "Pulsar needs Node.js 20 or newer (you have $(node -v))."
   exit 1
 fi
 DIR="$HOME/.agentdeck/bin"
 mkdir -p "$DIR"
-echo "Downloading AgentDeck host…"
+echo "Downloading Pulsar host…"
 curl -fsSL "$BASE/agentdeck-host.cjs" -o "$DIR/agentdeck-host.cjs.tmp"
 curl -fsSL "$BASE/agentdeck-host.cjs.sha256" -o "$DIR/agentdeck-host.cjs.sha256"
 EXPECTED=$(cut -d' ' -f1 "$DIR/agentdeck-host.cjs.sha256")
@@ -36,8 +36,8 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
   sleep 1
 done
 echo ""
-echo "AgentDeck is running and starts with your computer."
-echo "Scan this with the AgentDeck app on your phone (or type the code shown under it):"
+echo "Pulsar is running and starts with your computer."
+echo "Scan this with the Pulsar app on your phone (or type the code shown under it):"
 node "$DIR/agentdeck-host.cjs" pair || true
 if command -v open >/dev/null 2>&1; then open "http://localhost:48632/pair" >/dev/null 2>&1 || true
 elif command -v xdg-open >/dev/null 2>&1; then xdg-open "http://localhost:48632/pair" >/dev/null 2>&1 || true
