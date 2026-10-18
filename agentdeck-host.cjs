@@ -11183,7 +11183,7 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.2.3";
+var HOST_VERSION = "1.2.4";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -11604,11 +11604,6 @@ var AgentDeckService = class extends import_events.EventEmitter {
   }
 };
 
-// src/live/store.ts
-var import_fs4 = require("fs");
-var import_os2 = require("os");
-var import_path3 = require("path");
-
 // src/live/wire.ts
 var import_tweetnacl = __toESM(require_nacl_fast());
 var WIRE_VERSION = 2;
@@ -11716,7 +11711,247 @@ function encodePairingQr(p) {
   return `agentdeck://pair?${q.join("&")}`;
 }
 
+// src/live/compat.ts
+async function probe(name, fn) {
+  try {
+    return { name, ok: true, detail: await fn() };
+  } catch (e) {
+    return { name, ok: false, detail: e.message };
+  }
+}
+var WRITE_METHODS = ["StartCascade", "SendUserCascadeMessage", "CancelCascadeInvocation", "HandleCascadeUserInteraction"];
+async function checkCompatibility(servers) {
+  const checks = [];
+  const s = servers[0];
+  checks.push({ name: "Antigravity running", ok: !!s, detail: s ? `${servers.length} window(s) found` : "No Antigravity language server found" });
+  if (s) {
+    let sampleId = null;
+    let stepServer = s;
+    checks.push(
+      await probe("List conversations", async () => {
+        let total = 0;
+        for (const srv of servers) {
+          const r = await connectCall(srv, "GetAllCascadeTrajectories", {}, 15e3);
+          if (!r || typeof r !== "object") throw new Error("Unexpected response");
+          const map = r.trajectorySummaries ?? {};
+          if (typeof map !== "object") throw new Error("trajectorySummaries is no longer a map");
+          const all = Object.entries(map);
+          const first = all[0]?.[1];
+          if (first && (typeof first.stepCount !== "number" || typeof first.status !== "string")) throw new Error("Conversation summary shape changed (stepCount/status)");
+          if (!sampleId && all[0]) {
+            sampleId = all[0][0];
+            stepServer = srv;
+          }
+          total += all.length;
+        }
+        return `${total} conversation(s) across ${servers.length} window(s)`;
+      })
+    );
+    checks.push(
+      await probe("Read conversation steps", async () => {
+        if (!sampleId) return "skipped (no conversations)";
+        const r = await connectCall(stepServer, "GetCascadeTrajectorySteps", { cascadeId: sampleId, stepOffset: 0 }, 6e4);
+        if (!Array.isArray(r?.steps)) throw new Error("Response no longer has a steps array");
+        const typed = r.steps.filter((x) => typeof x?.type === "string" && x.type.startsWith("CORTEX_STEP_TYPE_"));
+        if (r.steps.length && !typed.length) throw new Error("Step type names changed");
+        return `${r.steps.length} step(s) readable`;
+      })
+    );
+    checks.push(
+      await probe("List models", async () => {
+        const r = await connectCall(s, "GetCascadeModelConfigData", {}, 1e4);
+        const n = (r?.clientModelConfigs ?? []).filter((m) => m?.modelOrAlias?.model).length;
+        if (!n) throw new Error("No models in clientModelConfigs");
+        return `${n} model(s)`;
+      })
+    );
+    for (const m of WRITE_METHODS) {
+      checks.push(
+        await probe(`Method ${m}`, async () => {
+          try {
+            await connectCall(s, m, { cascadeId: "" }, 1e4);
+            return "available";
+          } catch (e) {
+            const msg = e.message;
+            if (/unimplemented|not found: .*method|404/i.test(msg) && !/trajectory|cascade/i.test(msg)) throw new Error(`Method missing: ${msg}`);
+            return "available";
+          }
+        })
+      );
+    }
+  }
+  return { ok: checks.every((c) => c.ok), checkedAt: (/* @__PURE__ */ new Date()).toISOString(), servers: servers.length, checks };
+}
+
+// src/live/crash.ts
+var import_https2 = require("https");
+var import_os2 = require("os");
+var ENDPOINT = process.env["AGENTDECK_CRASH_URL"] || "https://agentdeck-telemetry.finnova.com.au/v1/crash";
+function scrub(text) {
+  return text.replace(/\/(Users|home)\/[^/\s'"]+/g, "/~").replace(/[A-Za-z]:\\Users\\[^\\\s'"]+/g, "~").replace(/[^\s@'"]+@[^\s@'"]+\.[a-z]{2,}/gi, "<email>").replace(/\b[A-Za-z0-9_\-+/=]{32,}\b/g, "<redacted>");
+}
+function reportCrash(error, version, fatal) {
+  if (process.env["AGENTDECK_CRASH_REPORTS"] === "0") return Promise.resolve();
+  const e = error instanceof Error ? error : new Error(String(error));
+  const body = JSON.stringify({
+    source: "host",
+    version,
+    platform: process.platform,
+    os: `${(0, import_os2.release)()} node ${process.versions.node}`,
+    name: scrub(e.name).slice(0, 120),
+    message: scrub(e.message).slice(0, 1e3),
+    stack: scrub(e.stack ?? "").slice(0, 6e3),
+    fatal
+  });
+  return new Promise((resolve2) => {
+    try {
+      const u = new URL(ENDPOINT);
+      const req = (0, import_https2.request)({ host: u.host, path: u.pathname, method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }, timeout: 5e3 }, (res) => {
+        res.resume();
+        res.on("end", () => resolve2());
+      });
+      req.on("error", () => resolve2());
+      req.on("timeout", () => req.destroy());
+      req.end(body);
+    } catch {
+      resolve2();
+    }
+  });
+}
+
+// src/live/license.ts
+var import_tweetnacl2 = __toESM(require_nacl_fast());
+var BILLING_URL = process.env["AGENTDECK_BILLING_URL"] || "https://agentdeck-billing.finnova.com.au";
+var PRICING_URL = "https://agentdeck.finnova.com.au/pricing";
+var LICENSE_PUBLIC_KEY = process.env["AGENTDECK_LICENSE_PUBLIC_KEY"] || "Gc8uSIbd/Xm19SF9W2dzfwuMC++bsmQ8+RhAq5wQtyk=";
+var REFRESH_MS = 12 * 3600 * 1e3;
+var OFFLINE_GRACE_MS = 14 * 86400 * 1e3;
+var PAST_DUE_GRACE_MS = 7 * 86400 * 1e3;
+function normalizeKey(k) {
+  const c = k.toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^ADK/, "");
+  return c.length === 16 ? `ADK-${c.match(/.{4}/g).join("-")}` : "";
+}
+var LicenseManager = class {
+  constructor(store, opts = {}) {
+    this.store = store;
+    this.opts = opts;
+  }
+  timer = null;
+  get f() {
+    return this.opts.fetch ?? fetch;
+  }
+  get url() {
+    return this.opts.billingUrl ?? BILLING_URL;
+  }
+  now() {
+    return this.opts.now?.() ?? Date.now();
+  }
+  get cache() {
+    return this.store.config.license ?? {};
+  }
+  save(patch) {
+    this.store.saveConfig({ license: { ...this.cache, ...patch } });
+  }
+  /** Verified statement for this host, or null if missing/forged/for another host. */
+  statement() {
+    const c = this.cache;
+    if (!c.payload || !c.signature) return null;
+    const pub = fromBase64(this.opts.publicKey ?? LICENSE_PUBLIC_KEY);
+    if (!import_tweetnacl2.default.sign.detached.verify(utf8Encode(c.payload), fromBase64(c.signature), pub)) return null;
+    try {
+      const s = JSON.parse(c.payload);
+      return s.hostId === this.store.config.hostId && s.key === c.key ? s : null;
+    } catch {
+      return null;
+    }
+  }
+  state() {
+    const required = process.env["AGENTDECK_LICENSE"] !== "off" && !!this.cache.enforced;
+    const s = this.statement();
+    const key = this.cache.key ?? null;
+    const age = s ? this.now() - Date.parse(s.issuedAt) : Infinity;
+    const renewsAt = s?.currentPeriodEnd ? new Date(s.currentPeriodEnd * 1e3).toISOString() : null;
+    let active = false;
+    let message = "";
+    if (!s) {
+      message = key ? "This license key could not be verified yet." : "No license on this computer yet.";
+    } else if ((s.status === "active" || s.status === "trialing") && age < OFFLINE_GRACE_MS) {
+      active = true;
+      message = "AgentDeck Pro is active.";
+    } else if (s.status === "past_due" && age < OFFLINE_GRACE_MS && this.now() - (this.cache.pastDueSince ?? this.now()) < PAST_DUE_GRACE_MS) {
+      active = true;
+      message = "Your last payment failed. Update your card to keep AgentDeck working.";
+    } else if (s.status === "past_due" || s.status === "unpaid") {
+      message = "Your payment failed and the grace period has ended. Update your card to turn AgentDeck back on.";
+    } else if (s.status === "incomplete" || s.status === "incomplete_expired") {
+      message = "The first payment for this subscription did not complete. Subscribe again from the pricing page.";
+    } else if (s.status === "paused") {
+      message = "This subscription is paused. Resume it to keep using AgentDeck.";
+    } else if (s.status === "too_many_hosts") {
+      message = "This license is already used on 3 computers.";
+    } else if (s.status === "canceled") {
+      message = "This subscription has ended.";
+    } else if (s.status === "invalid") {
+      message = "This license key is not valid.";
+    } else {
+      message = "The license could not be checked for a while. Connect this computer to the internet.";
+    }
+    return { required, active: active || !required, status: s?.status ?? (key ? "offline" : "none"), key, email: s?.email ?? null, renewsAt, message };
+  }
+  /** Checks a key with the billing service and stores the signed answer. */
+  async activate(rawKey) {
+    const key = normalizeKey(rawKey);
+    if (!key) throw new Error("That doesn\u2019t look like a license key. It looks like ADK-XXXX-XXXX-XXXX-XXXX.");
+    const res = await this.f(`${this.url}/v1/license/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, hostId: this.store.config.hostId })
+    });
+    if (!res.ok) throw new Error(`The license service answered ${res.status}. Try again in a minute.`);
+    const signed = await res.json();
+    const pub = fromBase64(this.opts.publicKey ?? LICENSE_PUBLIC_KEY);
+    if (!signed?.payload || !signed.signature || !import_tweetnacl2.default.sign.detached.verify(utf8Encode(signed.payload), fromBase64(signed.signature), pub)) {
+      throw new Error("The license answer failed its signature check.");
+    }
+    const st = JSON.parse(signed.payload);
+    if (st.hostId !== this.store.config.hostId || st.key && st.key !== key) throw new Error("The license answer was for a different key or computer.");
+    const switching = this.cache.key && this.cache.key !== key;
+    if (switching && (st.status === "invalid" || st.status === "too_many_hosts")) {
+      throw new Error(st.status === "invalid" ? "This license key is not valid. Your current license was kept." : "That license is already used on 3 computers. Your current license was kept.");
+    }
+    const pastDueSince = st.status === "past_due" ? (this.cache.key === key ? this.cache.pastDueSince : void 0) ?? this.now() : void 0;
+    this.save({ key, payload: signed.payload, signature: signed.signature, pastDueSince });
+    return this.state();
+  }
+  /** Learns whether sales are open, then re-verifies the saved key. Never throws. */
+  async refresh() {
+    try {
+      const h = await (await this.f(`${this.url}/health`)).json();
+      const testing = process.env["AGENTDECK_LICENSE_TEST"] === "1";
+      if (h.configured && (h.live || testing) && !this.cache.enforced) this.save({ enforced: true });
+    } catch {
+    }
+    if (this.cache.key) await this.activate(this.cache.key).catch(() => void 0);
+  }
+  start() {
+    if (this.timer) return;
+    void this.refresh();
+    this.timer = setInterval(() => void this.refresh(), REFRESH_MS);
+    this.timer.unref?.();
+  }
+  stop() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+  portalUrl() {
+    return this.cache.key ? `${this.url}/portal?key=${encodeURIComponent(this.cache.key)}` : null;
+  }
+};
+
 // src/live/store.ts
+var import_fs4 = require("fs");
+var import_os3 = require("os");
+var import_path3 = require("path");
 var Store = class {
   dir;
   hostFile;
@@ -11725,7 +11960,7 @@ var Store = class {
   /** True when this run created the host identity (first launch). */
   isNew;
   devices;
-  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path3.join)((0, import_os2.homedir)(), ".agentdeck")) {
+  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path3.join)((0, import_os3.homedir)(), ".agentdeck")) {
     this.dir = dir;
     (0, import_fs4.mkdirSync)(dir, { recursive: true, mode: 448 });
     (0, import_fs4.chmodSync)(dir, 448);
@@ -11735,7 +11970,7 @@ var Store = class {
     this.isNew = !saved;
     this.config = saved ?? {
       hostId: randomId(12),
-      hostName: (0, import_os2.hostname)().replace(/\.local$/, ""),
+      hostName: (0, import_os3.hostname)().replace(/\.local$/, ""),
       relayToken: randomId(32)
     };
     if (process.env["AGENTDECK_RELAY_URL"]) this.config.relayUrl = process.env["AGENTDECK_RELAY_URL"];
@@ -11784,7 +12019,7 @@ var Store = class {
 
 // src/live/server.ts
 var import_http2 = require("http");
-var import_os3 = require("os");
+var import_os4 = require("os");
 var import_child_process3 = require("child_process");
 var import_qrcode = __toESM(require_lib());
 
@@ -11800,7 +12035,7 @@ var import_websocket_server = __toESM(require_websocket_server(), 1);
 var wrapper_default = import_websocket.default;
 
 // src/live/session.ts
-var import_tweetnacl2 = __toESM(require_nacl_fast());
+var import_tweetnacl3 = __toESM(require_nacl_fast());
 var MAX_FRAME = 20 * 1024 * 1024;
 var MAX_PREAUTH_FRAME = 16 * 1024;
 var HANDSHAKE_TIMEOUT_MS = 1e4;
@@ -11940,7 +12175,7 @@ var PhoneSession = class {
     if (!device) return this.fail("unpaired", "This phone is not paired with this Mac (or was removed).", 4003);
     this.deviceId = device.deviceId;
     this.key = fromBase64(device.key);
-    this.challenge = toBase64(import_tweetnacl2.default.randomBytes(18));
+    this.challenge = toBase64(import_tweetnacl3.default.randomBytes(18));
     this.lastSeq = 0;
     this.hostSeq = 0;
     clearTimeout(this.handshakeTimer);
@@ -12210,82 +12445,10 @@ load();watch();
 </main></body></html>`;
 }
 
-// src/live/compat.ts
-async function probe(name, fn) {
-  try {
-    return { name, ok: true, detail: await fn() };
-  } catch (e) {
-    return { name, ok: false, detail: e.message };
-  }
-}
-var WRITE_METHODS = ["StartCascade", "SendUserCascadeMessage", "CancelCascadeInvocation", "HandleCascadeUserInteraction"];
-async function checkCompatibility(servers) {
-  const checks = [];
-  const s = servers[0];
-  checks.push({ name: "Antigravity running", ok: !!s, detail: s ? `${servers.length} window(s) found` : "No Antigravity language server found" });
-  if (s) {
-    let sampleId = null;
-    let stepServer = s;
-    checks.push(
-      await probe("List conversations", async () => {
-        let total = 0;
-        for (const srv of servers) {
-          const r = await connectCall(srv, "GetAllCascadeTrajectories", {}, 15e3);
-          if (!r || typeof r !== "object") throw new Error("Unexpected response");
-          const map = r.trajectorySummaries ?? {};
-          if (typeof map !== "object") throw new Error("trajectorySummaries is no longer a map");
-          const all = Object.entries(map);
-          const first = all[0]?.[1];
-          if (first && (typeof first.stepCount !== "number" || typeof first.status !== "string")) throw new Error("Conversation summary shape changed (stepCount/status)");
-          if (!sampleId && all[0]) {
-            sampleId = all[0][0];
-            stepServer = srv;
-          }
-          total += all.length;
-        }
-        return `${total} conversation(s) across ${servers.length} window(s)`;
-      })
-    );
-    checks.push(
-      await probe("Read conversation steps", async () => {
-        if (!sampleId) return "skipped (no conversations)";
-        const r = await connectCall(stepServer, "GetCascadeTrajectorySteps", { cascadeId: sampleId, stepOffset: 0 }, 6e4);
-        if (!Array.isArray(r?.steps)) throw new Error("Response no longer has a steps array");
-        const typed = r.steps.filter((x) => typeof x?.type === "string" && x.type.startsWith("CORTEX_STEP_TYPE_"));
-        if (r.steps.length && !typed.length) throw new Error("Step type names changed");
-        return `${r.steps.length} step(s) readable`;
-      })
-    );
-    checks.push(
-      await probe("List models", async () => {
-        const r = await connectCall(s, "GetCascadeModelConfigData", {}, 1e4);
-        const n = (r?.clientModelConfigs ?? []).filter((m) => m?.modelOrAlias?.model).length;
-        if (!n) throw new Error("No models in clientModelConfigs");
-        return `${n} model(s)`;
-      })
-    );
-    for (const m of WRITE_METHODS) {
-      checks.push(
-        await probe(`Method ${m}`, async () => {
-          try {
-            await connectCall(s, m, { cascadeId: "" }, 1e4);
-            return "available";
-          } catch (e) {
-            const msg = e.message;
-            if (/unimplemented|not found: .*method|404/i.test(msg) && !/trajectory|cascade/i.test(msg)) throw new Error(`Method missing: ${msg}`);
-            return "available";
-          }
-        })
-      );
-    }
-  }
-  return { ok: checks.every((c) => c.ok), checkedAt: (/* @__PURE__ */ new Date()).toISOString(), servers: servers.length, checks };
-}
-
 // src/live/server.ts
 function lanAddresses() {
   const out = [];
-  for (const list of Object.values((0, import_os3.networkInterfaces)())) {
+  for (const list of Object.values((0, import_os4.networkInterfaces)())) {
     for (const a of list ?? []) {
       if (a.family === "IPv4" && !a.internal && !a.address.startsWith("169.254.")) out.push(a.address);
     }
@@ -12542,172 +12705,9 @@ var HostServer = class {
     this.advertiser?.kill();
     this.relay?.stop();
     for (const c of this.wss?.clients ?? []) c.terminate();
-    await new Promise((r) => this.http ? this.http.close(() => r()) : r());
-  }
-};
-
-// src/live/crash.ts
-var import_https2 = require("https");
-var import_os4 = require("os");
-var ENDPOINT = process.env["AGENTDECK_CRASH_URL"] || "https://agentdeck-telemetry.finnova.com.au/v1/crash";
-function scrub(text) {
-  return text.replace(/\/(Users|home)\/[^/\s'"]+/g, "/~").replace(/[A-Za-z]:\\Users\\[^\\\s'"]+/g, "~").replace(/[^\s@'"]+@[^\s@'"]+\.[a-z]{2,}/gi, "<email>").replace(/\b[A-Za-z0-9_\-+/=]{32,}\b/g, "<redacted>");
-}
-function reportCrash(error, version, fatal) {
-  if (process.env["AGENTDECK_CRASH_REPORTS"] === "0") return Promise.resolve();
-  const e = error instanceof Error ? error : new Error(String(error));
-  const body = JSON.stringify({
-    source: "host",
-    version,
-    platform: process.platform,
-    os: `${(0, import_os4.release)()} node ${process.versions.node}`,
-    name: scrub(e.name).slice(0, 120),
-    message: scrub(e.message).slice(0, 1e3),
-    stack: scrub(e.stack ?? "").slice(0, 6e3),
-    fatal
-  });
-  return new Promise((resolve2) => {
-    try {
-      const u = new URL(ENDPOINT);
-      const req = (0, import_https2.request)({ host: u.host, path: u.pathname, method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }, timeout: 5e3 }, (res) => {
-        res.resume();
-        res.on("end", () => resolve2());
-      });
-      req.on("error", () => resolve2());
-      req.on("timeout", () => req.destroy());
-      req.end(body);
-    } catch {
-      resolve2();
-    }
-  });
-}
-
-// src/live/license.ts
-var import_tweetnacl3 = __toESM(require_nacl_fast());
-var BILLING_URL = process.env["AGENTDECK_BILLING_URL"] || "https://agentdeck-billing.finnova.com.au";
-var PRICING_URL = "https://agentdeck.finnova.com.au/pricing";
-var LICENSE_PUBLIC_KEY = process.env["AGENTDECK_LICENSE_PUBLIC_KEY"] || "Gc8uSIbd/Xm19SF9W2dzfwuMC++bsmQ8+RhAq5wQtyk=";
-var REFRESH_MS = 12 * 3600 * 1e3;
-var OFFLINE_GRACE_MS = 14 * 86400 * 1e3;
-var PAST_DUE_GRACE_MS = 7 * 86400 * 1e3;
-function normalizeKey(k) {
-  const c = k.toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^ADK/, "");
-  return c.length === 16 ? `ADK-${c.match(/.{4}/g).join("-")}` : "";
-}
-var LicenseManager = class {
-  constructor(store, opts = {}) {
-    this.store = store;
-    this.opts = opts;
-  }
-  timer = null;
-  get f() {
-    return this.opts.fetch ?? fetch;
-  }
-  get url() {
-    return this.opts.billingUrl ?? BILLING_URL;
-  }
-  now() {
-    return this.opts.now?.() ?? Date.now();
-  }
-  get cache() {
-    return this.store.config.license ?? {};
-  }
-  save(patch) {
-    this.store.saveConfig({ license: { ...this.cache, ...patch } });
-  }
-  /** Verified statement for this host, or null if missing/forged/for another host. */
-  statement() {
-    const c = this.cache;
-    if (!c.payload || !c.signature) return null;
-    const pub = fromBase64(this.opts.publicKey ?? LICENSE_PUBLIC_KEY);
-    if (!import_tweetnacl3.default.sign.detached.verify(utf8Encode(c.payload), fromBase64(c.signature), pub)) return null;
-    try {
-      const s = JSON.parse(c.payload);
-      return s.hostId === this.store.config.hostId && s.key === c.key ? s : null;
-    } catch {
-      return null;
-    }
-  }
-  state() {
-    const required = process.env["AGENTDECK_LICENSE"] !== "off" && !!this.cache.enforced;
-    const s = this.statement();
-    const key = this.cache.key ?? null;
-    const age = s ? this.now() - Date.parse(s.issuedAt) : Infinity;
-    const renewsAt = s?.currentPeriodEnd ? new Date(s.currentPeriodEnd * 1e3).toISOString() : null;
-    let active = false;
-    let message = "";
-    if (!s) {
-      message = key ? "This license key could not be verified yet." : "No license on this computer yet.";
-    } else if ((s.status === "active" || s.status === "trialing") && age < OFFLINE_GRACE_MS) {
-      active = true;
-      message = "AgentDeck Pro is active.";
-    } else if (s.status === "past_due" && age < OFFLINE_GRACE_MS && this.now() - (this.cache.pastDueSince ?? this.now()) < PAST_DUE_GRACE_MS) {
-      active = true;
-      message = "Your last payment failed. Update your card to keep AgentDeck working.";
-    } else if (s.status === "past_due" || s.status === "unpaid") {
-      message = "Your payment failed and the grace period has ended. Update your card to turn AgentDeck back on.";
-    } else if (s.status === "incomplete" || s.status === "incomplete_expired") {
-      message = "The first payment for this subscription did not complete. Subscribe again from the pricing page.";
-    } else if (s.status === "paused") {
-      message = "This subscription is paused. Resume it to keep using AgentDeck.";
-    } else if (s.status === "too_many_hosts") {
-      message = "This license is already used on 3 computers.";
-    } else if (s.status === "canceled") {
-      message = "This subscription has ended.";
-    } else if (s.status === "invalid") {
-      message = "This license key is not valid.";
-    } else {
-      message = "The license could not be checked for a while. Connect this computer to the internet.";
-    }
-    return { required, active: active || !required, status: s?.status ?? (key ? "offline" : "none"), key, email: s?.email ?? null, renewsAt, message };
-  }
-  /** Checks a key with the billing service and stores the signed answer. */
-  async activate(rawKey) {
-    const key = normalizeKey(rawKey);
-    if (!key) throw new Error("That doesn\u2019t look like a license key. It looks like ADK-XXXX-XXXX-XXXX-XXXX.");
-    const res = await this.f(`${this.url}/v1/license/verify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, hostId: this.store.config.hostId })
-    });
-    if (!res.ok) throw new Error(`The license service answered ${res.status}. Try again in a minute.`);
-    const signed = await res.json();
-    const pub = fromBase64(this.opts.publicKey ?? LICENSE_PUBLIC_KEY);
-    if (!signed?.payload || !signed.signature || !import_tweetnacl3.default.sign.detached.verify(utf8Encode(signed.payload), fromBase64(signed.signature), pub)) {
-      throw new Error("The license answer failed its signature check.");
-    }
-    const st = JSON.parse(signed.payload);
-    if (st.hostId !== this.store.config.hostId || st.key && st.key !== key) throw new Error("The license answer was for a different key or computer.");
-    const switching = this.cache.key && this.cache.key !== key;
-    if (switching && (st.status === "invalid" || st.status === "too_many_hosts")) {
-      throw new Error(st.status === "invalid" ? "This license key is not valid. Your current license was kept." : "That license is already used on 3 computers. Your current license was kept.");
-    }
-    const pastDueSince = st.status === "past_due" ? (this.cache.key === key ? this.cache.pastDueSince : void 0) ?? this.now() : void 0;
-    this.save({ key, payload: signed.payload, signature: signed.signature, pastDueSince });
-    return this.state();
-  }
-  /** Learns whether sales are open, then re-verifies the saved key. Never throws. */
-  async refresh() {
-    try {
-      const h = await (await this.f(`${this.url}/health`)).json();
-      const testing = process.env["AGENTDECK_LICENSE_TEST"] === "1";
-      if (h.configured && (h.live || testing) && !this.cache.enforced) this.save({ enforced: true });
-    } catch {
-    }
-    if (this.cache.key) await this.activate(this.cache.key).catch(() => void 0);
-  }
-  start() {
-    if (this.timer) return;
-    void this.refresh();
-    this.timer = setInterval(() => void this.refresh(), REFRESH_MS);
-    this.timer.unref?.();
-  }
-  stop() {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
-  }
-  portalUrl() {
-    return this.cache.key ? `${this.url}/portal?key=${encodeURIComponent(this.cache.key)}` : null;
+    const closing = new Promise((r) => this.http ? this.http.close(() => r()) : r());
+    this.http?.closeAllConnections?.();
+    await closing;
   }
 };
 
@@ -12759,9 +12759,46 @@ var UpdateChecker = class {
   }
 };
 
+// src/live/embed.ts
+var DEFAULT_RELAY_URL = process.env["AGENTDECK_DEFAULT_RELAY_URL"] || "wss://agentdeck-relay.finnova.com.au";
+async function startHost(opts = {}) {
+  const store = new Store();
+  if (store.isNew && !store.config.relayUrl && process.env["AGENTDECK_DEFAULT_RELAY"] !== "off") store.saveConfig({ relayUrl: DEFAULT_RELAY_URL });
+  const bridge = new AntigravityBridge();
+  const license = new LicenseManager(store);
+  license.start();
+  const service = new AgentDeckService(bridge, store, expoPushSender, license);
+  const updates = new UpdateChecker(HOST_VERSION, { isMacApp: opts.isMacApp });
+  updates.start();
+  service.updates = updates;
+  const server = new HostServer(service, store, { port: opts.port ?? Number(process.env["AGENTDECK_PORT"] || DEFAULT_PORT) });
+  let port;
+  try {
+    port = await server.start();
+  } catch (e) {
+    license.stop();
+    updates.stop();
+    await server.stop().catch(() => void 0);
+    throw e;
+  }
+  service.start();
+  return {
+    store,
+    service,
+    server,
+    port,
+    version: HOST_VERSION,
+    stop: async () => {
+      service.stop();
+      license.stop();
+      updates.stop();
+      await server.stop();
+    }
+  };
+}
+
 // src/live/main.ts
 var PORT = Number(process.env["AGENTDECK_PORT"] || DEFAULT_PORT);
-var DEFAULT_RELAY_URL = "wss://agentdeck-relay.finnova.com.au";
 function localCall(method, path, body) {
   return new Promise((resolvePromise, reject) => {
     const payload = body === void 0 ? "" : JSON.stringify(body);
@@ -12792,18 +12829,20 @@ async function start() {
     console.error("Unhandled promise rejection:", e);
     void reportCrash(e, HOST_VERSION, false);
   });
-  const store = new Store();
-  if (store.isNew && !store.config.relayUrl && process.env["AGENTDECK_DEFAULT_RELAY"] !== "off") store.saveConfig({ relayUrl: DEFAULT_RELAY_URL });
-  const bridge = new AntigravityBridge();
-  const license = new LicenseManager(store);
-  license.start();
-  const service = new AgentDeckService(bridge, store, expoPushSender, license);
-  const updates = new UpdateChecker(HOST_VERSION, { isMacApp: isSea() });
-  updates.start();
-  service.updates = updates;
-  const server = new HostServer(service, store, { port: PORT });
-  const port = await server.start();
-  service.start();
+  let started;
+  for (; ; ) {
+    try {
+      started = await startHost({ port: PORT, isMacApp: isSea() });
+      break;
+    } catch (e) {
+      if (e.code !== "EADDRINUSE") throw e;
+      const other = await localCall("GET", "/api/health").catch(() => null);
+      if (!other?.app) throw new Error(`Port ${PORT} is used by another program. Set AGENTDECK_PORT to use a different one.`);
+      console.log(`AgentDeck ${other.version} is already running (probably inside Antigravity). Standing by\u2026`);
+      while (await localCall("GET", "/api/health").catch(() => null)) await new Promise((r) => setTimeout(r, 2e4));
+    }
+  }
+  const { store, service, server, port } = started;
   const info = await service.hostInfo();
   console.log(`AgentDeck host ${HOST_VERSION} \u2014 ${store.config.hostName}`);
   console.log(`  Dashboard:   http://localhost:${port}/`);
