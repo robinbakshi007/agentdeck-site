@@ -11183,7 +11183,7 @@ function isExpoPushToken(token) {
 }
 
 // src/live/service.ts
-var HOST_VERSION = "1.2.6";
+var HOST_VERSION = "1.2.7";
 var INITIAL_WINDOW = 120;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -12096,7 +12096,7 @@ var PhoneSession = class {
   onRevoked = (deviceId) => {
     if (deviceId !== this.deviceId) return;
     this.push("revoked", {});
-    this.link.close(4003, "revoked");
+    setTimeout(() => this.link.close(4003, "revoked"), 300);
   };
   get authenticatedDevice() {
     return this.key ? this.deviceId : null;
@@ -12580,7 +12580,7 @@ var HostServer = class {
         return void res.end(pairPageHtml());
       }
       if (req.method === "GET" && url.pathname === "/local/compat") {
-        if (!this.compat || Date.now() - Date.parse(this.compat.checkedAt) > 10 * 6e4) {
+        if (!this.compat || !this.compat.ok || Date.now() - Date.parse(this.compat.checkedAt) > 10 * 6e4) {
           this.compat = await checkCompatibility(await this.service.bridge.ensureServers());
         }
         return json(res, 200, this.compat);
