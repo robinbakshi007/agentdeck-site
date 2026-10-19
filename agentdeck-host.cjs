@@ -10814,7 +10814,7 @@ var MAX_DETAIL = 1500;
 function clip(s, max) {
   if (!s) return "";
   return s.length > max ? `${s.slice(0, max)}
-\u2026 (${s.length - max} more characters on your Mac)` : s;
+\u2026 (${s.length - max} more characters on your computer)` : s;
 }
 function tail(s, max) {
   if (!s) return "";
@@ -11545,7 +11545,7 @@ var AgentDeckService = class extends import_events.EventEmitter {
       const FREE = ["host.info", "devices.list", "devices.revoke", "push.register"];
       if (this.license && !FREE.includes(method)) {
         const l = this.license.state();
-        if (!l.active) throw new RpcError(`LICENSE_REQUIRED: ${l.message} Open the Pulsar dashboard on your Mac to activate.`);
+        if (!l.active) throw new RpcError(`LICENSE_REQUIRED: ${l.message} Open the Pulsar dashboard on your computer to activate.`);
       }
       switch (method) {
         case "host.info":
@@ -11589,7 +11589,7 @@ var AgentDeckService = class extends import_events.EventEmitter {
         case "devices.list":
           return this.store.listDevices().map(({ key: _key, pushToken, ...d }) => ({ ...d, push: !!pushToken, current: d.deviceId === deviceId }));
         case "devices.revoke": {
-          if (p?.deviceId !== void 0 && p.deviceId !== deviceId) throw new RpcError("Remove other phones from the dashboard on your Mac");
+          if (p?.deviceId !== void 0 && p.deviceId !== deviceId) throw new RpcError("Remove other phones from the Pulsar dashboard on your computer");
           const removed = this.store.removeDevice(deviceId);
           this.emit("revoked", deviceId);
           return { ok: removed };
@@ -12138,7 +12138,7 @@ var PhoneSession = class {
   }
   handlePair(frame) {
     const key = this.pairing.key();
-    if (!key) return this.fail("pairing_closed", "Pairing is not open on the Mac. Open Pulsar on your Mac and show the QR code again.");
+    if (!key) return this.fail("pairing_closed", "Pairing is not open on the computer. Open Pulsar on your computer and show the QR code again.");
     const req = open(key, frame);
     if (!req || typeof req.deviceId !== "string" || req.deviceId.length < 8 || typeof req.eph !== "string") {
       this.pairing.recordFailure();
@@ -12172,7 +12172,7 @@ var PhoneSession = class {
     this.greeted = true;
     if (frame.v !== WIRE_VERSION) return this.fail("version", "Please update Pulsar on your phone or Mac.");
     const device = typeof frame.d === "string" ? this.store.getDevice(frame.d) : void 0;
-    if (!device) return this.fail("unpaired", "This phone is not paired with this Mac (or was removed).", 4003);
+    if (!device) return this.fail("unpaired", "This phone is not paired with this computer (or was removed).", 4003);
     this.deviceId = device.deviceId;
     this.key = fromBase64(device.key);
     this.challenge = toBase64(import_tweetnacl3.default.randomBytes(18));
@@ -12334,7 +12334,7 @@ input{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;ba
 code{font:13px ui-monospace,Menlo,monospace}.code{font:600 22px ui-monospace,Menlo,monospace;letter-spacing:2px;text-align:center;margin:8px 0}
 #qr svg{width:240px;height:240px;background:#fff;border-radius:8px;padding:6px;display:block;margin:0 auto}.muted{color:var(--muted);font-size:13px}
 </style></head><body><main>
-<h1>Pulsar Host</h1><p class="sub">Control Antigravity from your phone. This page is only reachable from this Mac. <a href="https://agentdeck.finnova.com.au/help" target="_blank" rel="noopener">Help &amp; support</a></p>
+<h1>Pulsar Host</h1><p class="sub">Control Antigravity from your phone. This page is only reachable from this computer. <a href="https://agentdeck.finnova.com.au/help" target="_blank" rel="noopener">Help &amp; support</a></p>
 <div id="update" class="card" hidden style="border-color:var(--accent)"></div>
 <div class="card"><h2>Status</h2><div id="status" class="muted">Loading\u2026</div><div id="compat" class="muted" style="margin-top:8px"></div></div>
 <div class="card"><h2>Pulsar Pro license</h2><div id="lic" class="muted">Checking\u2026</div>
@@ -12345,7 +12345,7 @@ code{font:13px ui-monospace,Menlo,monospace}.code{font:600 22px ui-monospace,Men
 <div id="pair"><button id="pairBtn">Show pairing code</button></div></div>
 <div class="card"><h2>Paired phones</h2><div id="devices" class="muted">None yet.</div></div>
 <div class="card"><h2>Remote access (away from Wi-Fi)</h2>
-<p class="muted">Point the host at an Pulsar relay. The relay forwards encrypted traffic only; it cannot read your code or prompts.</p>
+<p class="muted">Point the host at a Pulsar relay. The relay forwards encrypted traffic only; it cannot read your code or prompts.</p>
 <div class="row"><input id="relay" placeholder="wss://relay.example.com"><button id="relayBtn">Save</button></div><div id="relayStatus" class="muted"></div></div>
 </main><script>
 const $=id=>document.getElementById(id);
@@ -12407,14 +12407,14 @@ a{color:var(--accent)}
   <p id="anywhere" class="muted" style="font-size:13px"></p>
   <p class="muted" style="font-size:13px">Code expires in <span id="left">10:00</span>. <button id="new" style="padding:4px 10px;font-size:13px">New code</button></p>
   <ol class="muted" style="font-size:14px">
-    <li>Don't have the app yet? The Pulsar phone app is in early access and coming soon to the App Store and Google Play: <a href="https://agentdeck.finnova.com.au/early-access" target="_blank" rel="noopener">join the waitlist</a>.</li>
+    <li>Don't have the app yet? The Pulsar phone app has been submitted to the App Store and Google Play and is awaiting approval: <a href="https://agentdeck.finnova.com.au/early-access" target="_blank" rel="noopener">join the waiting list</a> and we'll email you the moment it's live.</li>
     <li>Once paired, your phone keeps working away from home: on mobile data or any Wi-Fi.</li>
   </ol>
 </div>
 <div id="done" hidden>
   <div class="ok">\u2705</div>
   <h1>Paired with <span id="phone">your phone</span></h1>
-  <p class="muted">You can close this window. Pulsar keeps running in the menu bar and starts with your Mac.</p>
+  <p class="muted">You can close this window. Pulsar keeps running in the background and starts with your computer.</p>
   <p><a href="/">Open the Pulsar dashboard</a> \xB7 <button id="another">Pair another phone</button></p>
 </div>
 <script>
