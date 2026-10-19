@@ -12407,7 +12407,7 @@ a{color:var(--accent)}
   <p id="anywhere" class="muted" style="font-size:13px"></p>
   <p class="muted" style="font-size:13px">Code expires in <span id="left">10:00</span>. <button id="new" style="padding:4px 10px;font-size:13px">New code</button></p>
   <ol class="muted" style="font-size:14px">
-    <li>Don't have the app yet? The Pulsar phone app has been submitted to the App Store and Google Play and is awaiting approval: <a href="https://agentdeck.finnova.com.au/early-access" target="_blank" rel="noopener">join the waiting list</a> and we'll email you the moment it's live.</li>
+    <li>Don't have the app yet? Android: <a href="https://agentdeck.finnova.com.au/android" target="_blank" rel="noopener">download it now</a>. iPhone and iPad: in App Store review, <a href="https://agentdeck.finnova.com.au/early-access" target="_blank" rel="noopener">get the beta link by email</a>.</li>
     <li>Once paired, your phone keeps working away from home: on mobile data or any Wi-Fi.</li>
   </ol>
 </div>
