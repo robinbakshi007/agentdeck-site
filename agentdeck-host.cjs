@@ -12937,10 +12937,21 @@ Restart=always
 WantedBy=default.target
 `
     );
-    (0, import_child_process4.execFileSync)("systemctl", ["--user", "daemon-reload"]);
-    (0, import_child_process4.execFileSync)("systemctl", ["--user", "enable", "--now", "agentdeck-host.service"]);
-    console.log(`Installed as a systemd user service.
+    try {
+      (0, import_child_process4.execFileSync)("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
+      (0, import_child_process4.execFileSync)("systemctl", ["--user", "enable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
+      console.log(`Installed as a systemd user service.
   Dashboard: http://localhost:${PORT}/`);
+    } catch {
+      const log = (0, import_fs5.openSync)((0, import_path4.join)(logDir, "host.log"), "a");
+      (0, import_child_process4.spawn)(entry[0], [...entry.slice(1), "start"], { detached: true, stdio: ["ignore", log, log] }).unref();
+      console.log(
+        `Pulsar host is running (no systemd user session here, so it won't start by itself after a restart).
+  Dashboard: http://localhost:${PORT}/
+  Start it again later with: ${entry.map((a) => `"${a}"`).join(" ")} start
+  Logs: ${(0, import_path4.join)(logDir, "host.log")}`
+      );
+    }
   } else if (process.platform === "win32") {
     const startup = (0, import_path4.join)(process.env["APPDATA"] ?? (0, import_os5.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
     (0, import_fs5.writeFileSync)((0, import_path4.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${entry.map((a) => `""${a}""`).join(" ")} start", 0, False
