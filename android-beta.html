@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulsar: Android beta on Google Play</title><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css"></head><body><main>
+<nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+<h1>Become an Android beta tester</h1>
+<p>Pulsar for Android is in a closed test on Google Play. Google asks new apps to be tested by real people for <b>14 days</b> before they can go public, so every tester helps Pulsar launch. <b>It's free while the beta runs</b>, and you get the app before everyone else.</p>
+
+<div class="card signup" id="signup">
+<h2 style="margin-top:0">Join the free beta</h2>
+<p>Pulsar is free for beta testers. When the beta ends, you keep a beta-tester price of <b>US$0.99/year per computer</b>. We'll email you first, and nothing is charged unless you choose to upgrade.</p>
+<p id="upgradeNote" class="note" hidden>That upgrade link isn't valid. Use the link in your latest Pulsar email, or <a href="/support">contact support</a>.</p>
+<form id="betaForm" novalidate>
+  <input name="name" type="text" autocomplete="name" placeholder="Your name (optional)" aria-label="Your name" maxlength="100">
+  <input name="email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email address" required>
+  <button type="submit">Join the beta</button>
+</form>
+<p id="betaMsg" class="muted small" role="status" aria-live="polite">We use your email only for the beta and your beta-tester price. See our <a href="/privacy">privacy policy</a>.</p>
+</div>
+
+<div class="card" id="steps">
+<h2 style="margin-top:0">Three steps (2 minutes)</h2>
+<ol>
+<li><b><a href="https://groups.google.com/g/pulsar-android-beta">Join the Pulsar Android beta group</a></b> with the Google account you use on your Android phone (tap <b>Join group</b>). You won't get emails from it.</li>
+<li><b><a href="https://play.google.com/apps/testing/com.finnova.agentdeck">Open the tester page</a></b> and tap <b>Become a tester</b>.</li>
+<li><b><a href="https://play.google.com/store/apps/details?id=com.finnova.agentdeck">Install Pulsar from Google Play</a></b> on that phone, and keep it installed for at least 14 days.</li>
+</ol>
+<p class="muted" style="margin-bottom:0">Use the same Google account in all three steps. If the Play Store says the app isn't available, wait a few minutes after joining the group and try again.</p>
+</div>
+<h2>Then pair it with your computer</h2>
+<p>Install Pulsar in Antigravity (Extensions → search <b>Pulsar</b>) or <a href="/download">download the Mac/Windows app</a>, then scan the pairing code in the phone app. No computer handy? Tap <b>Try the demo first</b>.</p>
+<p>Found a bug or have an idea? Tell us in the app (Settings → Help &amp; support) or at <a href="mailto:support@finnova.com.au">support@finnova.com.au</a>. You can leave the test any time on the tester page.</p>
+<p class="muted">iPhone or iPad? <a href="https://testflight.apple.com/join/taSBA684">Join the TestFlight beta</a>.</p>
+<style>
+[hidden]{display:none!important}
+.signup{border:2px solid var(--accent)}
+.signup form{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 6px}
+.signup input{flex:1 1 200px;font:inherit;padding:11px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg,#fff);color:var(--text)}
+.signup button{font:inherit;font-weight:800;border:0;background:var(--accent);color:#fff;border-radius:10px;padding:11px 22px;cursor:pointer}
+.signup button[disabled]{opacity:.6;cursor:default}
+.small{font-size:14px;margin:6px 0 0}
+.note{background:color-mix(in srgb,#DC2626 10%,transparent);border-radius:10px;padding:10px 14px}
+.ok{color:#16A34A;font-weight:700}
+</style>
+<script>
+const BILL='https://agentdeck-billing.finnova.com.au';
+const $=(x)=>document.getElementById(x);
+if(new URLSearchParams(location.search).get('upgrade')==='invalid')$('upgradeNote').hidden=false;
+fetch(BILL+'/v1/pricing').then(r=>r.json()).then(p=>{if(p.beta&&!p.beta.open){$('betaForm').hidden=true;$('betaMsg').textContent='The free beta is full right now. You can still test the app with the steps below, or buy Pulsar Pro on the pricing page.';}}).catch(()=>{});
+$('betaForm').addEventListener('submit',async(e)=>{
+  e.preventDefault();const f=e.target,btn=f.querySelector('button'),email=f.email.value.trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){$('betaMsg').textContent='Please enter a valid email address.';f.email.focus();return;}
+  btn.disabled=true;btn.textContent='Joining…';
+  try{const r=await fetch(BILL+'/v1/beta',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,name:f.elements.name.value.trim(),platform:'android'})});const j=await r.json();
+    if(!r.ok)throw new Error(j.error||'Something went wrong');
+    f.hidden=true;$('betaMsg').innerHTML='<span class="ok">'+(j.already?'You\'re already on the beta list.':'You\'re in!')+'</span> We\'ve emailed you the links. Now follow the three steps below on your Android phone.';
+    $('steps').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){$('betaMsg').textContent=err.message+'. Please try again, or email support@finnova.com.au.';btn.disabled=false;btn.textContent='Join the beta';}
+});
+</script>
+<p class="muted" style="font-size:13px">Pulsar is an independent companion app and is not affiliated with Google or Antigravity.</p>
+</main></body></html>

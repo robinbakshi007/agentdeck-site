@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
+<title>Your Pulsar plan</title><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css"></head><body><main>
+<nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+<h1>Your Pulsar plan</h1>
+<p id="switched" hidden class="card" style="border-color:#16A34A"><b>You're on Pulsar Pro Lifetime.</b> Your key stays the same, and your old plan has been stopped. We'll email you before each yearly renewal.</p>
+
+<form id="lookup" class="card" style="display:grid;gap:10px">
+  <label>Your license key<br><input id="key" required placeholder="ADK-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" style="font:16px ui-monospace,Menlo,monospace;padding:9px 12px;border:1px solid var(--border);border-radius:8px;width:100%;max-width:420px;background:var(--bg);color:var(--text)"></label>
+  <button class="btn">Show my plan</button>
+  <p class="muted" style="margin:0;font-size:14px">It's in your welcome email, on your invoices, and on the Pulsar dashboard of any computer you activated.</p>
+  <p id="err" hidden style="margin:0;color:#DC2626"></p>
+</form>
+
+<section id="summary" hidden class="card" style="display:grid;gap:8px">
+  <h2 id="plan" style="margin:0"></h2>
+  <p id="state" style="margin:0"></p>
+  <p id="computers" class="muted" style="margin:0"></p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+    <a id="manage" class="btn" href="#">Manage billing</a>
+    <button id="cancel" class="btn ghost" hidden>Cancel plan</button>
+  </div>
+  <p class="muted" style="margin:0;font-size:14px">Manage billing: add a card, add or remove computers, download invoices.</p>
+</section>
+
+<!-- Cancellation: what you'll lose, then two deals (each one can be skipped), then a final confirmation. -->
+<section id="s-lose" class="step card" hidden>
+  <h2 style="margin-top:0">Before you cancel</h2>
+  <p>When your plan ends, Pulsar stops on your computers and you'll lose:</p>
+  <ul><li>Live view of your agents and approvals from your phone</li><li>Notifications when an agent needs you or finishes</li><li>Remote access from anywhere, end-to-end encrypted</li></ul>
+  <div class="row"><button class="btn" data-go="keep">Keep my plan</button><button class="btn ghost" data-go="next">Continue to cancel</button></div>
+</section>
+
+<section id="s-lifetime" class="step card offer" hidden>
+  <p class="tag">Before you go</p>
+  <h2 style="margin-top:0">Pay once, keep Pulsar for good</h2>
+  <p class="price"><span id="lt-once"></span> <span class="muted">once</span> + <span id="lt-yearly"></span><span class="muted">/year</span></p>
+  <ul><li>Covers up to 3 computers</li><li>Every future update included</li><li>We'll email you before each yearly renewal</li></ul>
+  <div class="row"><button class="btn" id="take-lifetime">Get lifetime</button><button class="btn ghost" data-go="next">No thanks, continue to cancel</button></div>
+</section>
+
+<section id="s-yearly" class="step card offer deal" hidden>
+  <p class="tag">One-time deal</p>
+  <h2 style="margin-top:0">Just <span id="y-price">US$0.99</span> a year</h2>
+  <p class="price"><s id="y-was" class="muted"></s> <span id="y-now"></span><span class="muted">/year</span> <span id="y-per" class="muted"></span></p>
+  <p>Keep everything you have now. <b>We'll send you a notification before every renewal</b>, so it never comes as a surprise, and you can still cancel any time.</p>
+  <div class="row"><button class="btn" id="take-yearly">Keep Pulsar for US$0.99/year</button><button class="btn ghost" data-go="next">No thanks, cancel my plan</button></div>
+</section>
+
+<section id="s-confirm" class="step card" hidden>
+  <h2 style="margin-top:0">Confirm cancellation</h2>
+  <p id="c-when"></p>
+  <fieldset style="border:0;padding:0;margin:0 0 12px"><legend class="muted" style="margin-bottom:6px">Why are you leaving? (optional)</legend>
+    <label><input type="radio" name="reason" value="Too expensive"> Too expensive</label><br>
+    <label><input type="radio" name="reason" value="Not using it enough"> Not using it enough</label><br>
+    <label><input type="radio" name="reason" value="Missing a feature"> Missing a feature</label><br>
+    <label><input type="radio" name="reason" value="Something didn't work"> Something didn't work</label><br>
+    <label><input type="radio" name="reason" value="Other"> Other</label>
+  </fieldset>
+  <textarea id="note" rows="2" maxlength="400" placeholder="Anything we could do better? (optional)" style="font:inherit;width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"></textarea>
+  <div class="row"><button class="btn danger" id="confirm">Confirm cancellation</button><button class="btn ghost" data-go="keep">Keep my plan</button></div>
+</section>
+
+<section id="s-done" class="step card" hidden style="border-color:#16A34A">
+  <h2 style="margin-top:0" id="d-title">Your plan is cancelled</h2>
+  <p id="d-text"></p>
+</section>
+
+<style>
+[hidden]{display:none!important}
+.btn{display:inline-block;background:var(--accent);color:#fff;border:0;border-radius:8px;padding:11px 18px;font:inherit;font-weight:700;cursor:pointer;text-decoration:none;justify-self:start}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border);font-weight:500}
+.btn.danger{background:#DC2626}.btn[disabled]{opacity:.55;cursor:wait}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.tag{margin:0 0 4px;font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.price{font-size:26px;font-weight:800;margin:6px 0}
+.offer{border-color:var(--accent);border-width:2px}
+.deal{position:relative;overflow:hidden}
+.deal.show{animation:pop .55s cubic-bezier(.2,1.4,.4,1)}
+.deal.show::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%);transform:translateX(-100%);animation:shine 1.6s .4s ease-out;pointer-events:none}
+.deal.show #y-price{display:inline-block;margin:0 .2em;animation:pulse 1.2s .6s ease-in-out 2}
+@keyframes pop{from{opacity:0;transform:scale(.85) translateY(12px)}to{opacity:1;transform:none}}
+@keyframes shine{to{transform:translateX(100%)}}
+@keyframes pulse{50%{transform:scale(1.12);color:var(--accent)}}
+@media (prefers-reduced-motion:reduce){.deal.show,.deal.show::after,.deal.show #y-price{animation:none}}
+</style>
+<script>
+const BILL='https://agentdeck-billing.finnova.com.au';
+const $=(id)=>document.getElementById(id);
+const usd=(c)=>'US$'+(c/100).toFixed(2);
+const date=(s)=>new Date(s*1000).toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'});
+const PLANS={trial:'Free trial',monthly:'Pulsar Pro monthly',annual:'Pulsar Pro annual',yearly:'Pulsar Pro yearly deal',lifetime:'Pulsar Pro lifetime'};
+let key='',acc=null,steps=[];
+
+const api=async(path,body={})=>{const r=await fetch(BILL+path,{method:'POST',body:JSON.stringify({key,...body})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Something went wrong. Please try again.');return j;};
+function show(id){document.querySelectorAll('.step').forEach(s=>s.hidden=true);if(!id)return;const el=$(id);el.hidden=false;el.classList.remove('show');void el.offsetWidth;el.classList.add('show');el.scrollIntoView({behavior:'smooth',block:'start'});}
+
+async function load(){
+  $('err').hidden=true;
+  try{acc=await api('/v1/account');}catch(e){$('err').textContent=e.message;$('err').hidden=false;$('summary').hidden=true;return;}
+  try{localStorage.setItem('pulsar.key',key)}catch(e){}
+  $('plan').textContent=PLANS[acc.plan]||'Pulsar Pro';
+  const end=acc.trialEnd||acc.currentPeriodEnd;
+  let st='';
+  if(acc.status==='canceled')st='This plan has ended.';
+  else if(acc.cancelAtPeriodEnd)st='Cancelled. Pulsar keeps working until '+date(end)+'. You won\'t be charged again.';
+  else if(acc.status==='trialing')st='Free until '+date(acc.trialEnd)+'. '+(acc.hasCard?'Then it continues automatically.':'Add a card in Manage billing to keep Pulsar after that, or it simply stops with no charge.');
+  else if(acc.plan==='lifetime'&&!end)st='Paid for good. Nothing to renew.';
+  else if(end)st='Renews on '+date(end)+'.';
+  $('state').textContent=st;
+  $('computers').textContent='Covers '+acc.computers+' computer'+(acc.computers===1?'':'s')+'.';
+  $('manage').href=BILL+'/portal?key='+encodeURIComponent(key);
+  $('cancel').hidden=!acc.canCancel;
+  $('summary').hidden=false;
+  const lt=acc.offers.find(o=>o.id==='lifetime'),yr=acc.offers.find(o=>o.id==='yearly');
+  steps=['s-lose',...(lt?['s-lifetime']:[]),...(yr?['s-yearly']:[]),'s-confirm'];
+  if(lt){$('lt-once').textContent=usd(lt.onceCents);$('lt-yearly').textContent=usd(lt.yearlyCents);}
+  if(yr){
+    const n=yr.computers,now=yr.yearlyCents*n;
+    $('y-price').textContent=usd(yr.yearlyCents);$('y-now').textContent=usd(now);
+    $('y-per').textContent=n>1?'('+n+' computers)':'';
+    const p=acc.price;const was=p&&p.cents?(p.interval==='month'?p.cents*12:p.cents)*(acc.plan==='trial'?n:1):0;
+    $('y-was').textContent=was>now?usd(was):'';
+  }
+  $('c-when').textContent=end?'You won\'t be charged again. Pulsar keeps working until '+date(end)+'.':'You won\'t be charged again.';
+}
+
+$('lookup').addEventListener('submit',(e)=>{e.preventDefault();key=$('key').value.trim();history.replaceState(null,'','#key='+encodeURIComponent(key));load();});
+$('cancel').onclick=()=>show(steps[0]);
+document.addEventListener('click',(e)=>{const go=e.target.dataset&&e.target.dataset.go;if(!go)return;
+  if(go==='keep'){show(null);$('summary').scrollIntoView({behavior:'smooth'});return;}
+  const cur=steps.findIndex(id=>!$(id).hidden);show(steps[cur+1]);});
+async function busy(btn,fn){btn.disabled=true;try{await fn();}catch(e){alert(e.message);}btn.disabled=false;}
+$('take-lifetime').onclick=(e)=>busy(e.target,async()=>{const r=await api('/v1/cancel/lifetime');location.href=r.url;});
+$('take-yearly').onclick=(e)=>busy(e.target,async()=>{await api('/v1/cancel/yearly');$('d-title').textContent='Done: US$0.99 a year';$('d-text').textContent='You\'re on the yearly deal. We\'ll email you before every renewal, and you can cancel any time from this page.';await load();show('s-done');});
+$('confirm').onclick=(e)=>busy(e.target,async()=>{
+  const r=document.querySelector('input[name=reason]:checked');const note=$('note').value.trim();
+  const res=await api('/v1/cancel/confirm',{reason:[r&&r.value,note].filter(Boolean).join(': ')});
+  $('d-text').textContent='You won\'t be charged again.'+(res.endsAt?' Pulsar keeps working until '+date(res.endsAt)+'.':'')+' We\'ve emailed you a confirmation. Changed your mind? You can restart from the pricing page any time.';
+  await load();show('s-done');});
+
+if(new URLSearchParams(location.search).get('switched')==='lifetime')$('switched').hidden=false;
+const fromHash=new URLSearchParams(location.hash.slice(1)).get('key');
+let saved='';try{saved=localStorage.getItem('pulsar.key')||''}catch(e){}
+key=fromHash||saved;
+if(key){$('key').value=key;load();}
+</script>
+<p class="muted" style="font-size:13px;margin-top:28px">Paid through the App Store or Google Play? Pulsar doesn't sell plans there; all plans are managed on this page. Questions: <a href="/support">support</a>.</p>
+</main></body></html>

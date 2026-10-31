@@ -1,34 +1,80 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
 <title>Welcome to Pulsar Pro</title><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css"></head><body><main>
 <nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
-<h1>Thank you!</h1>
-<p class="soon"><b>Get the phone app now:</b> <a href="/download#android"><b>Android</b></a> · <a href="/download#iphone"><b>iPhone &amp; iPad beta</b></a>. The App Store and Google Play versions are in review.</p>
-<div class="card" style="display:grid;gap:10px">
-  <p id="status" style="margin:0">Getting your license key…</p>
-  <p id="keywrap" hidden style="margin:0"><code id="key" style="font-size:20px;padding:6px 10px;user-select:all"></code> <button id="copy" style="font:inherit;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:8px;padding:6px 12px;cursor:pointer">Copy</button></p>
-  <p class="muted" style="margin:0">Keep this key: it's how your computer proves your subscription. It's also printed on your future invoices<span id="emailed" hidden>, and we've emailed it to you</span>. Stripe sends your payment receipt separately.</p>
-</div>
-<h2>Activate it</h2>
-<ol>
-  <li>If you haven't yet, <a href="/mac">download Pulsar for Mac</a> and open it.</li>
-  <li>On your Mac, click the <b>Pulsar</b> icon in the menu bar → <b>Open dashboard</b>, and paste the key under <b>Pulsar Pro license</b>.<br><span class="muted" style="font-size:14px">Installed with Terminal instead? Run <code id="cmd">agentdeck-host activate &lt;key&gt;</code></span></li>
-  <li>Pair your phone and you're done.</li>
-</ol>
+
+<header class="welcome">
+  <div class="tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
+  <h1 id="title">You're in. Welcome to Pulsar Pro</h1>
+  <p id="sub" class="muted">Three quick steps and your agent is in your pocket.</p>
+</header>
+
+<section class="keycard">
+  <p id="status" class="label">Getting your license key…</p>
+  <div id="keywrap" hidden class="keyrow"><code id="key"></code><button id="copy" type="button">Copy</button></div>
+  <p class="muted small">Keep this key: it's how your computer proves your plan. It's also on your invoices<span id="emailed" hidden>, and we've emailed it to you</span>.</p>
+</section>
+
+<section class="steps">
+  <div class="step"><span class="num">1</span><div><h2>Install Pulsar on your computer</h2>
+    <p>In <b>Antigravity</b>: open Extensions, search <b>“Pulsar”</b> and install it. Or <a href="/download">download the Mac or Windows app</a>.</p></div></div>
+  <div class="step"><span class="num">2</span><div><h2>Activate it with your key</h2>
+    <p>In Antigravity, click <b>Pulsar: activate license</b> in the status bar. In the Mac app, click the Pulsar icon in the menu bar → <b>Open dashboard</b> and paste the key under <b>Pulsar Pro license</b>.</p>
+    <p class="muted small">Installed with Terminal? Run <code id="cmd">agentdeck-host activate &lt;key&gt;</code></p></div></div>
+  <div class="step"><span class="num">3</span><div><h2>Pair your phone</h2>
+    <p>Install the free app, then scan the pairing code your computer shows.</p>
+    <p class="stores"><a href="/download#android">Android</a><a href="/download#iphone">iPhone &amp; iPad</a></p></div></div>
+</section>
+
+<p class="center muted small"><a id="manage" href="/account">Manage or cancel your plan</a> · <a href="/help">Setup help</a> · <a href="/support">Support</a></p>
+
+<style>
+[hidden]{display:none!important}
+.welcome{text-align:center;margin:8px 0 28px}
+.tick{width:64px;height:64px;margin:0 auto 16px;border-radius:50%;background:#16A34A;display:grid;place-items:center;animation:pop .5s cubic-bezier(.2,1.4,.4,1)}
+.tick svg{width:34px;height:34px;fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+@keyframes pop{from{transform:scale(.4);opacity:0}}
+.welcome h1{font-size:clamp(28px,5vw,38px);margin:0 0 8px}
+.keycard{background:var(--surface);border:2px solid var(--accent);border-radius:18px;padding:22px;text-align:center;margin-bottom:28px}
+.label{margin:0 0 10px;font-weight:700}
+.keyrow{display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.keyrow code{font-size:clamp(17px,4vw,22px);padding:8px 14px;user-select:all;letter-spacing:.04em}
+.keyrow button{font:inherit;font-weight:700;border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;cursor:pointer}
+.small{font-size:14px;margin:6px 0 0}
+.steps{display:grid;gap:14px;margin-bottom:28px}
+.step{display:flex;gap:16px;align-items:flex-start;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px}
+.step h2{font-size:18px;margin:2px 0 4px}.step p{margin:0 0 6px}
+.num{flex:none;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800}
+.stores{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px!important}
+.stores a{text-decoration:none;font-weight:700;border:1px solid var(--border);border-radius:10px;padding:7px 14px;color:var(--text)}
+.center{text-align:center}
+@media (prefers-reduced-motion:reduce){.tick{animation:none}}
+</style>
 <script>
+const BILL='https://agentdeck-billing.finnova.com.au';
 const id=new URLSearchParams(location.search).get('session_id');
-const show=(k)=>{try{localStorage.setItem('agentdeck.key.'+id,k)}catch(e){}document.getElementById('status').textContent='Your Pulsar Pro license key:';document.getElementById('key').textContent=k;document.getElementById('keywrap').hidden=false;document.getElementById('cmd').textContent='node ~/.agentdeck/bin/agentdeck-host.cjs activate '+k;};
+const $=(x)=>document.getElementById(x);
+const date=(s)=>new Date(s*1000).toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'});
+function show(r){
+  try{localStorage.setItem('agentdeck.key.'+id,JSON.stringify(r))}catch(e){}
+  $('status').textContent='Your Pulsar Pro license key';$('key').textContent=r.key;$('keywrap').hidden=false;
+  $('cmd').textContent='node ~/.agentdeck/bin/agentdeck-host.cjs activate '+r.key;
+  $('manage').href='/account#key='+encodeURIComponent(r.key);
+  if(r.plan==='trial'){
+    $('title').textContent='Your 30-day free trial has started';
+    $('sub').textContent='Nothing charged today.'+(r.trialEnd?' Your trial runs until '+date(r.trialEnd)+', and we\'ll email you 3 days before it ends.':' We\'ll email you 3 days before it ends.');
+  }
+}
 let tries=0;
 async function poll(){
-  if(!id){document.getElementById('status').innerHTML='No checkout found. If you just paid, your key is on your invoices, or <a href="/support">contact support</a> with your billing email.';return;}
-  try{const saved=localStorage.getItem('agentdeck.key.'+id);if(saved)return show(saved);}catch(e){}
-  try{const r=await (await fetch('https://agentdeck-billing.finnova.com.au/v1/session?session_id='+encodeURIComponent(id))).json();
-    if(r.key) return show(r.key);
-  }catch(e){}
-  if(++tries<20) setTimeout(poll,2000); else document.getElementById('status').innerHTML='Your payment went through, but the key is taking a while. Refresh in a minute or <a href="/support">contact support</a>.';
+  if(!id){$('status').innerHTML='No checkout found. If you just signed up, your key is in your email, or <a href="/support">contact support</a>.';return;}
+  try{const saved=localStorage.getItem('agentdeck.key.'+id);if(saved)return show(saved.startsWith('{')?JSON.parse(saved):{key:saved});}catch(e){}
+  try{const r=await (await fetch(BILL+'/v1/session?session_id='+encodeURIComponent(id))).json();if(r.key)return show(r);
+    if(r.error){$('status').innerHTML='We couldn\'t find that sign-up. Your key is in your welcome email, or <a href="/support">contact support</a>.';return;}}catch(e){}
+  if(++tries<20)setTimeout(poll,2000);else $('status').innerHTML='You\'re signed up, but the key is taking a while. Refresh in a minute or <a href="/support">contact support</a>.';
 }
 poll();
-fetch('https://agentdeck-billing.finnova.com.au/health').then(r=>r.json()).then(h=>{if(h.emailsKeys)document.getElementById('emailed').hidden=false;}).catch(()=>{});
-document.getElementById('copy').onclick=async()=>{try{await navigator.clipboard.writeText(document.getElementById('key').textContent);document.getElementById('copy').textContent='Copied';}catch(e){}};
+fetch(BILL+'/health').then(r=>r.json()).then(h=>{if(h.emailsKeys)$('emailed').hidden=false;}).catch(()=>{});
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('key').textContent);$('copy').textContent='Copied';setTimeout(()=>$('copy').textContent='Copy',1500);}catch(e){}};
 </script>
 </main></body></html>

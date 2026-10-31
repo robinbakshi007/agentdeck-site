@@ -6,7 +6,8 @@
 <p class="muted">One license covers Pulsar on up to 3 of your computers, the free phone apps on iPhone, iPad and Android, and remote access from anywhere.</p>
 <p class="soon"><b>Get the phone app now:</b> <a href="/download#android"><b>Android</b></a> · <a href="/download#iphone"><b>iPhone &amp; iPad beta</b></a>. The App Store and Google Play versions are in review.</p>
 <p id="checkout-error" hidden class="card" style="border-color:#DC2626">Checkout couldn't start just now. Please try again in a minute, or <a href="/support">contact support</a>.</p>
-<div id="founding" class="card" style="border-color:var(--accent);margin-bottom:14px"><b>Founding member pricing</b> for our first 10,000 customers. <span id="spots">Checking spots…</span></div>
+<p class="card" style="border-color:var(--accent);margin-bottom:14px"><b>New: try it free for 30 days.</b> The first 100 people get a free trial with no card needed, then US$0.99/month per computer. <a href="/early-access"><b>Start your free trial</b></a></p>
+<div id="founding" class="card" style="border-color:var(--accent);margin-bottom:14px"><b>Early access:</b> our first 15 customers get Pulsar Pro for US$0.99/month, or lifetime for US$29.99 once + US$0.99/month (prices exclude GST). <span id="spots">Checking spots…</span></div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
   <div class="card" style="display:flex;flex-direction:column;gap:6px;margin:0">
     <h2 style="margin:0">Monthly</h2>
@@ -27,7 +28,7 @@
     <a class="buy" data-plan="lifetime" href="https://agentdeck-billing.finnova.com.au/checkout?plan=lifetime" style="display:block;text-align:center;background:var(--accent);color:#fff;text-decoration:none;border-radius:8px;padding:11px 16px;font-weight:700;margin-top:auto">Choose lifetime</a>
   </div>
 </div>
-<p class="muted" style="font-size:14px;margin-top:14px">All prices in US dollars, excluding GST. Australian customers pay 10% GST on top, shown at checkout. Secure checkout by Stripe; cancel subscriptions any time from the Pulsar dashboard (you keep access until the end of the paid period).</p>
+<p class="muted" style="font-size:14px;margin-top:14px">All prices in US dollars, excluding GST. Australian customers pay 10% GST on top, shown at checkout. Secure checkout by Stripe; cancel any time from your <a href="/account">account page</a> (you keep access until the end of the paid period).</p>
 <h2>What you get</h2>
 <ul>
   <li>Live view of every Antigravity conversation from your phone</li>
@@ -48,10 +49,10 @@ fetch('https://agentdeck-billing.finnova.com.au/v1/pricing').then(r=>r.json()).t
   if(open){
     document.getElementById('spots').innerHTML='<b>'+f.remaining.toLocaleString()+'</b> of '+f.limit.toLocaleString()+' spots left.';
     document.getElementById('m-price').textContent=usd(P.monthly.foundingCents);
-    document.getElementById('m-note').textContent='Founding price, kept for as long as you stay subscribed. New customers later pay '+usd(P.monthly.cents)+'/month.';
+    document.getElementById('m-note').textContent='Early-access price, kept for as long as you stay subscribed. New customers later pay '+usd(P.monthly.cents)+'/month.';
     document.getElementById('l-price').textContent=usd(P.lifetime.foundingCents);
     document.getElementById('l-unit').textContent='once + '+usd(P.lifetime.foundingMonthlyCents)+'/month';
-    document.getElementById('l-note').textContent='Founding price (RRP '+usd(P.lifetime.cents)+' once). Includes every future update.';
+    document.getElementById('l-note').textContent='Early-access price (RRP '+usd(P.lifetime.cents)+' once). Includes every future update.';
   } else {
     document.getElementById('founding').hidden=true;
     document.getElementById('m-price').textContent=usd(P.monthly.cents);

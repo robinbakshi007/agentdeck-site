@@ -4407,10 +4407,10 @@ var require_browser = __commonJS({
           text = canvas;
           canvas = void 0;
         }
-        return new Promise(function(resolve2, reject) {
+        return new Promise(function(resolve3, reject) {
           try {
             const data = QRCode3.create(text, opts);
-            resolve2(renderFunc(data, canvas, opts));
+            resolve3(renderFunc(data, canvas, opts));
           } catch (e) {
             reject(e);
           }
@@ -4491,11 +4491,11 @@ var require_server = __commonJS({
     }
     function render(renderFunc, text, params) {
       if (!params.cb) {
-        return new Promise(function(resolve2, reject) {
+        return new Promise(function(resolve3, reject) {
           try {
             const data = QRCode3.create(text, params.opts);
             return renderFunc(data, params.opts, function(err, data2) {
-              return err ? reject(err) : resolve2(data2);
+              return err ? reject(err) : resolve3(data2);
             });
           } catch (e) {
             reject(e);
@@ -9017,7 +9017,7 @@ var require_extension = __commonJS({
 var require_websocket = __commonJS({
   "../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/websocket.js"(exports2, module2) {
     "use strict";
-    var EventEmitter2 = require("events");
+    var EventEmitter7 = require("events");
     var https = require("https");
     var http = require("http");
     var net = require("net");
@@ -9049,7 +9049,7 @@ var require_websocket = __commonJS({
     var protocolVersions = [8, 13];
     var readyStates = ["CONNECTING", "OPEN", "CLOSING", "CLOSED"];
     var subprotocolRegex = /^[!#$%&'*+\-.0-9A-Z^_`|a-z~]+$/;
-    var WebSocket2 = class _WebSocket extends EventEmitter2 {
+    var WebSocket2 = class _WebSocket extends EventEmitter7 {
       /**
        * Create a new `WebSocket`.
        *
@@ -10069,7 +10069,7 @@ var require_subprotocol = __commonJS({
 var require_websocket_server = __commonJS({
   "../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/websocket-server.js"(exports2, module2) {
     "use strict";
-    var EventEmitter2 = require("events");
+    var EventEmitter7 = require("events");
     var http = require("http");
     var { Duplex } = require("stream");
     var { createHash } = require("crypto");
@@ -10082,7 +10082,7 @@ var require_websocket_server = __commonJS({
     var RUNNING = 0;
     var CLOSING = 1;
     var CLOSED = 2;
-    var WebSocketServer2 = class extends EventEmitter2 {
+    var WebSocketServer2 = class extends EventEmitter7 {
       /**
        * Create a `WebSocketServer` instance.
        *
@@ -10467,10 +10467,10 @@ var require_websocket_server = __commonJS({
 });
 
 // src/live/main.ts
-var import_fs5 = require("fs");
-var import_os5 = require("os");
-var import_path4 = require("path");
-var import_child_process4 = require("child_process");
+var import_fs10 = require("fs");
+var import_os8 = require("os");
+var import_path10 = require("path");
+var import_child_process7 = require("child_process");
 var import_http3 = require("http");
 var import_qrcode2 = __toESM(require_lib());
 
@@ -10489,7 +10489,16 @@ var AntigravityError = class extends Error {
     this.code = code;
   }
 };
-var ANTIGRAVITY_BINARY = /[\\/]extensions[\\/]antigravity[\\/]bin[\\/]language_server_[a-z0-9_]+(\.exe)?$/i;
+function isAntigravityProcess(command) {
+  if (!/--csrf_token[= ]/.test(command)) return false;
+  const bin = command.replace(/^"([^"]+)".*$/, "$1").split(" --")[0].trim();
+  if (/[\\/]extensions[\\/]antigravity[\\/]bin[\\/]language_server_[a-z0-9_]+(\.exe)?$/i.test(bin)) return true;
+  if (/[\\/]bin[\\/]language_server(_[a-z0-9_]+)?(\.exe)?$/i.test(bin) && (/antigravity/i.test(bin) || /--app_data_dir[= ]antigravity/i.test(command) || /--override_ide_name[= ]antigravity/i.test(command))) {
+    return true;
+  }
+  if (/[\\/]bin[\\/]agy(\.exe)?$/i.test(bin) && /--hub\b/.test(command)) return true;
+  return false;
+}
 function linuxProcesses(proc = "/proc") {
   const out = [];
   for (const d of (0, import_fs.readdirSync)(proc)) {
@@ -10523,7 +10532,7 @@ function linuxListeningPorts(pid, proc = "/proc") {
 async function listLanguageServerProcesses() {
   if (process.platform === "linux") {
     const uid2 = process.getuid?.();
-    return linuxProcesses().filter((p) => /--csrf_token/.test(p.command) && (uid2 === void 0 || p.uid === uid2) && ANTIGRAVITY_BINARY.test(p.command.split(" --")[0])).map((p) => ({ pid: p.pid, command: p.command }));
+    return linuxProcesses().filter((p) => (uid2 === void 0 || p.uid === uid2) && isAntigravityProcess(p.command)).map((p) => ({ pid: p.pid, command: p.command }));
   }
   if (process.platform === "win32") {
     const { stdout: stdout2 } = await execFileAsync(
@@ -10531,15 +10540,15 @@ async function listLanguageServerProcesses() {
       [
         "-NoProfile",
         "-Command",
-        `Get-CimInstance Win32_Process -Filter "Name like 'language_server%'" | ForEach-Object { "$($_.ProcessId)\`t$($_.CommandLine)" }`
+        `Get-CimInstance Win32_Process -Filter "Name like 'language_server%' or Name like 'agy%'" | ForEach-Object { "$($_.ProcessId)\`t$($_.CommandLine)" }`
       ],
       { maxBuffer: 8 * 1024 * 1024 }
     );
-    return stdout2.split(/\r?\n/).map((l) => l.split("	")).filter((p) => p.length >= 2 && /^\d+$/.test(p[0])).map(([pid, ...rest]) => ({ pid: Number(pid), command: rest.join("	") })).filter((p) => ANTIGRAVITY_BINARY.test(p.command.replace(/^"([^"]+)".*$/, "$1").split(" --")[0]));
+    return stdout2.split(/\r?\n/).map((l) => l.split("	")).filter((p) => p.length >= 2 && /^\d+$/.test(p[0])).map(([pid, ...rest]) => ({ pid: Number(pid), command: rest.join("	") })).filter((p) => isAntigravityProcess(p.command));
   }
   const { stdout } = await execFileAsync("ps", ["-axww", "-o", "pid=,uid=,command="], { maxBuffer: 16 * 1024 * 1024 });
   const uid = process.getuid?.();
-  return stdout.split("\n").map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter((m) => !!m && /--csrf_token/.test(m[3])).filter((m) => uid === void 0 || Number(m[2]) === uid).filter((m) => ANTIGRAVITY_BINARY.test(m[3].split(" --")[0])).map((m) => ({ pid: Number(m[1]), command: m[3] }));
+  return stdout.split("\n").map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter((m) => !!m && isAntigravityProcess(m[3])).filter((m) => uid === void 0 || Number(m[2]) === uid).map((m) => ({ pid: Number(m[1]), command: m[3] }));
 }
 async function listeningPorts(pid) {
   try {
@@ -10572,7 +10581,7 @@ function arg(command, name) {
 }
 function connectCall(server, method, body, timeoutMs = 3e4) {
   const payload = JSON.stringify(body ?? {});
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve3, reject) => {
     const req = (0, import_http.request)(
       {
         host: "127.0.0.1",
@@ -10604,7 +10613,7 @@ function connectCall(server, method, body, timeoutMs = 3e4) {
             reject(new AntigravityError(msg, /not found/i.test(msg) ? "not_found" : "rpc"));
             return;
           }
-          resolve2(json2);
+          resolve3(json2);
         });
       }
     );
@@ -10620,7 +10629,9 @@ async function discoverLanguageServers() {
     procs.map(async (p) => {
       const csrf = arg(p.command, "csrf_token");
       if (!csrf) return;
-      const ports = await listeningPorts(p.pid);
+      const hubPort = Number(arg(p.command, "hub-port") ?? 0);
+      const discovered = await listeningPorts(p.pid);
+      const ports = hubPort > 0 ? [hubPort, ...discovered.filter((x) => x !== hubPort)] : discovered;
       for (const port of ports) {
         try {
           await connectCall({ port, csrf }, "GetUserStatus", {}, 3e3);
@@ -10650,7 +10661,7 @@ var AntigravityBridge = class {
     if (!this.discovering) {
       this.discovering = this.discover().then((all) => {
         const primary = all.filter((x) => x.primary);
-        const s = primary.length ? primary.slice(0, 1) : all;
+        const s = primary.length ? primary : all;
         this.servers = s;
         this.lastDiscovery = Date.now();
         this.lastError = s.length ? null : "Antigravity is not running on this computer";
@@ -10720,20 +10731,26 @@ var AntigravityBridge = class {
    * After Antigravity restarts it only reports conversations opened in the IDE.
    * Load the most recently used ones from disk so the phone sees them too.
    */
-  async loadRecentFromDisk(limit = 25, dir = (0, import_path.join)((0, import_os.homedir)(), ".gemini/antigravity-ide/conversations")) {
-    let ids;
-    try {
-      const seen = /* @__PURE__ */ new Map();
-      for (const f of (0, import_fs.readdirSync)(dir)) {
-        const m = f.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(pb|db)$/);
-        if (!m) continue;
-        const t = (0, import_fs.statSync)((0, import_path.join)(dir, f)).mtimeMs;
-        seen.set(m[1], Math.max(seen.get(m[1]) ?? 0, t));
+  async loadRecentFromDisk(limit = 25, dir) {
+    const dirs = dir ? [dir] : [
+      (0, import_path.join)((0, import_os.homedir)(), ".gemini/antigravity/conversations"),
+      (0, import_path.join)((0, import_os.homedir)(), ".gemini/antigravity-cli/conversations"),
+      (0, import_path.join)((0, import_os.homedir)(), ".gemini/antigravity-ide/conversations")
+    ];
+    const seen = /* @__PURE__ */ new Map();
+    for (const d of dirs) {
+      try {
+        for (const f of (0, import_fs.readdirSync)(d)) {
+          const m = f.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(pb|db)$/);
+          if (!m) continue;
+          const t = (0, import_fs.statSync)((0, import_path.join)(d, f)).mtimeMs;
+          seen.set(m[1], Math.max(seen.get(m[1]) ?? 0, t));
+        }
+      } catch {
       }
-      ids = [...seen.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id]) => id);
-    } catch {
-      return 0;
     }
+    const ids = [...seen.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([id]) => id);
+    if (!ids.length) return 0;
     const servers = await this.ensureServers();
     const app = servers.find((s) => !s.workspaceId) ?? servers[0];
     if (!app) return 0;
@@ -10787,13 +10804,25 @@ var AntigravityBridge = class {
     throw lastErr;
   }
   async sendMessage(cascadeId, text, opts) {
-    await this.callOwned(cascadeId, "SendUserCascadeMessage", {
+    let owner = this.owner.get(cascadeId);
+    if (!owner) {
+      await this.listConversations();
+      owner = this.owner.get(cascadeId);
+    }
+    if (!owner) throw new AntigravityError(`Conversation ${cascadeId} is not loaded in Antigravity`, "not_found");
+    const body = {
       cascadeId,
       items: [{ text }],
       // Antigravity ignores `images` from API clients; `media` with inline base64 is what reaches the model.
       media: opts.images?.length ? opts.images.map((i) => ({ mimeType: i.mimeType, inlineData: i.base64Data })) : void 0,
       cascadeConfig: { plannerConfig: { requestedModel: { model: opts.model }, conversational: {} } }
-    });
+    };
+    const call = connectCall(owner, "SendUserCascadeMessage", body, 18e4);
+    call.catch(() => void 0);
+    await Promise.race([
+      call,
+      new Promise((resolve3) => setTimeout(resolve3, 350))
+    ]);
   }
   async cancel(cascadeId) {
     await this.callOwned(cascadeId, "CancelCascadeInvocation", { cascadeId });
@@ -10804,13 +10833,77 @@ var AntigravityBridge = class {
 };
 
 // src/live/service.ts
-var import_events = require("events");
-var import_fs3 = require("fs");
+var import_events3 = require("events");
+var import_child_process4 = require("child_process");
+var import_dgram = require("dgram");
+var import_fs5 = require("fs");
+var import_net = require("net");
+var import_os3 = require("os");
+var import_path5 = require("path");
 var import_url = require("url");
 
 // src/live/steps.ts
-var MAX_TEXT = 12e3;
+var MAX_TEXT = 24e3;
 var MAX_DETAIL = 1500;
+function formatAgentTextForPhone(raw) {
+  if (!raw) return "";
+  const lines = raw.split("\n");
+  const out = [];
+  let inFence = false;
+  let i = 0;
+  const cleanInline = (s) => s.replace(/<br\s*\/?>/gi, " \xB7 ").replace(/\[(`[^`]+`|[^\]]+)\]\((?:file|vscode|antigravity):\/\/[^)]+\)/g, "$1").replace(/\[`([^`]+)`\]\((https?:\/\/[^)]+)\)/g, "[$1]($2)");
+  const splitCells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => cleanInline(c.trim()));
+  const isSeparatorRow = (line) => /^\|[\s:|-]+\|$/.test(line.trim());
+  while (i < lines.length) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      out.push(line);
+      i++;
+      continue;
+    }
+    if (inFence) {
+      out.push(line);
+      i++;
+      continue;
+    }
+    if (/^\s*---+\s*$/.test(line)) {
+      i++;
+      continue;
+    }
+    if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && isSeparatorRow(lines[i + 1])) {
+      const headers = splitCells(line).map((h) => h.replace(/\*\*/g, "").trim());
+      i += 2;
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+        const rowLine = lines[i];
+        if (!isSeparatorRow(rowLine)) {
+          const cells = splitCells(rowLine);
+          if (cells.length >= 3 && /^(\*\*)?\d+(\*\*)?$/.test(cells[0])) {
+            const num = cells[0].replace(/\*\*/g, "");
+            const title = cells[1];
+            const pctIdx = headers.findIndex((h) => /%|completion/i.test(h));
+            const pct = pctIdx >= 0 && cells[pctIdx] ? ` \xB7 \`${cells[pctIdx].replace(/\*\*/g, "")}\`` : "";
+            out.push(`\u2022 **#${num}** ${title}${pct}`);
+            for (let c = 2; c < cells.length; c++) {
+              if (c === pctIdx || !cells[c]) continue;
+              const hName = headers[c] || `Info`;
+              out.push(`  \u2022 **${hName}:** ${cells[c]}`);
+            }
+          } else {
+            const formatted = cells.map((c, idx) => headers[idx] ? `**${headers[idx]}:** ${c}` : c).filter(Boolean).join(" \xB7 ");
+            if (formatted) out.push(`\u2022 ${formatted}`);
+          }
+        }
+        i++;
+      }
+      out.push("");
+      continue;
+    }
+    out.push(cleanInline(line));
+    i++;
+  }
+  return out.join("\n");
+}
 function clip(s, max) {
   if (!s) return "";
   return s.length > max ? `${s.slice(0, max)}
@@ -10894,7 +10987,8 @@ var HIDDEN_TYPES = /* @__PURE__ */ new Set([
   "CORTEX_STEP_TYPE_KNOWLEDGE_ARTIFACTS",
   "CORTEX_STEP_TYPE_CHECKPOINT",
   "CORTEX_STEP_TYPE_SYSTEM_MESSAGE",
-  "CORTEX_STEP_TYPE_EPHEMERAL_MESSAGE"
+  "CORTEX_STEP_TYPE_EPHEMERAL_MESSAGE",
+  "CORTEX_STEP_TYPE_GENERIC"
 ]);
 function toolTitle(step) {
   const meta = step.metadata ?? {};
@@ -11005,12 +11099,12 @@ function stepToItem(step, idx) {
   if (type === "CORTEX_STEP_TYPE_PLANNER_RESPONSE") {
     const pr = step.plannerResponse ?? {};
     const text = pr.modifiedResponse || pr.response || "";
-    if (!text.trim() && stepState(step.status) !== "running") return null;
+    if (!text.trim()) return null;
     return {
       kind: "agent",
       idx,
       at,
-      text: clip(text, MAX_TEXT),
+      text: clip(formatAgentTextForPhone(text), MAX_TEXT),
       thinking: pr.thinking ? clip(pr.thinking, 4e3) : void 0,
       thinkingMs: durationMs(pr.thinkingDuration),
       model: step.metadata?.generatorModel,
@@ -11155,11 +11249,98 @@ async function fileDiff(cwd, file) {
   const truncated = diff.length > MAX_DIFF_BYTES;
   return { diff: truncated ? diff.slice(0, MAX_DIFF_BYTES) : diff, truncated };
 }
+async function commitChanges(cwd, message) {
+  const msg = String(message ?? "").trim();
+  if (!msg) throw new Error("Commit message is required");
+  if (!await isGitRepo(cwd)) throw new Error("Not a git repository");
+  await git(cwd, ["add", "-A"]);
+  const out = await git(cwd, ["commit", "-m", msg]);
+  const sha = (await git(cwd, ["rev-parse", "--short", "HEAD"]).catch(() => "")).trim();
+  return { commit: sha, summary: out.trim() };
+}
+async function pushChanges(cwd) {
+  if (!await isGitRepo(cwd)) throw new Error("Not a git repository");
+  const branch = await currentBranch(cwd);
+  const out = await git(cwd, ["push"]).catch(() => branch ? git(cwd, ["push", "-u", "origin", branch]) : git(cwd, ["push", "origin", "HEAD"]));
+  return { output: out.trim() || `Pushed ${branch ?? "HEAD"}`, branch };
+}
+async function revertFile(cwd, file) {
+  if (!await isGitRepo(cwd)) throw new Error("Not a git repository");
+  const abs = (0, import_path2.normalize)((0, import_path2.join)(cwd, file));
+  const rel = (0, import_path2.relative)(cwd, abs);
+  if (!rel || rel.startsWith("..") || (0, import_path2.isAbsolute)(rel)) throw new Error("Path is outside the workspace");
+  if ((0, import_fs2.existsSync)(abs)) {
+    const realRoot = (0, import_fs2.realpathSync)(cwd);
+    if ((0, import_fs2.lstatSync)(abs).isSymbolicLink()) {
+      (0, import_fs2.unlinkSync)(abs);
+      return { ok: true };
+    }
+    const realRel = (0, import_path2.relative)(realRoot, (0, import_fs2.realpathSync)(abs));
+    if (realRel.startsWith("..") || (0, import_path2.isAbsolute)(realRel)) throw new Error("Path is outside the workspace");
+  }
+  const tracked = await git(cwd, ["ls-files", "--error-unmatch", "--", rel]).then(
+    () => true,
+    () => false
+  );
+  if (tracked) {
+    await git(cwd, [" reset", "HEAD", "--", rel].map((s) => s.trim())).catch(() => void 0);
+    await git(cwd, ["checkout", "--", rel]);
+  } else if ((0, import_fs2.existsSync)(abs)) {
+    (0, import_fs2.unlinkSync)(abs);
+  }
+  return { ok: true };
+}
+async function stashChanges(cwd, pop = false) {
+  if (!await isGitRepo(cwd)) throw new Error("Not a git repository");
+  const out = pop ? await git(cwd, ["stash", "pop"]) : await git(cwd, ["stash", "push", "-u", "-m", "Pulsar mobile stash"]);
+  return { output: out.trim() || (pop ? "Applied stash" : "Saved working tree to stash") };
+}
+async function revertHunk(cwd, file, hunk) {
+  if (!await isGitRepo(cwd)) throw new Error("Not a git repository");
+  const abs = (0, import_path2.normalize)((0, import_path2.join)(cwd, file));
+  const rel = (0, import_path2.relative)(cwd, abs);
+  if (!rel || rel.startsWith("..") || (0, import_path2.isAbsolute)(rel)) throw new Error("Path is outside the workspace");
+  const cleanHunk = String(hunk ?? "").trim();
+  if (!cleanHunk.startsWith("@@")) throw new Error("Invalid diff hunk");
+  const patch = `--- a/${rel}
++++ b/${rel}
+${cleanHunk}
+`;
+  await new Promise((resolve3, reject) => {
+    const proc = (0, import_child_process2.spawn)("git", ["apply", "-R", "--unidiff-zero", "-"], { cwd });
+    let stderr = "";
+    proc.stderr.on("data", (c) => stderr += c.toString());
+    proc.on("error", reject);
+    proc.on("close", (code) => code === 0 ? resolve3() : reject(new Error(stderr.trim() || "Could not revert hunk")));
+    proc.stdin.end(patch);
+  });
+  return { ok: true };
+}
+async function createPullRequestUrl(cwd) {
+  if (!await isGitRepo(cwd)) throw new Error("Not a git repository");
+  const branch = await currentBranch(cwd);
+  const rawRemote = (await git(cwd, ["remote", "get-url", "origin"]).catch(() => "")).trim();
+  if (!rawRemote) throw new Error('No git remote "origin" configured for this repository');
+  let webBase = "";
+  const sshMatch = rawRemote.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+  if (sshMatch) {
+    webBase = `https://${sshMatch[1]}/${sshMatch[2]}`;
+  } else if (/^https?:\/\//i.test(rawRemote)) {
+    const u = new URL(rawRemote);
+    u.username = "";
+    u.password = "";
+    webBase = u.toString().replace(/\.git\/?$/, "").replace(/\/$/, "");
+  }
+  if (!webBase) throw new Error(`Unsupported remote URL: ${rawRemote}`);
+  const b = encodeURIComponent(branch && branch !== "HEAD" ? branch : "main");
+  const url = /gitlab/i.test(webBase) ? `${webBase}/-/merge_requests/new?merge_request[source_branch]=${b}` : `${webBase}/compare/${b}?expand=1`;
+  return { url, branch };
+}
 
 // src/live/push.ts
 var import_https = require("https");
-var expoPushSender = (messages) => new Promise((resolve2) => {
-  if (!messages.length) return resolve2();
+var expoPushSender = (messages) => new Promise((resolve3) => {
+  if (!messages.length) return resolve3();
   const body = JSON.stringify(messages.map((m) => ({ ...m, sound: "default", priority: "high", channelId: "agent" })));
   const req = (0, import_https.request)(
     {
@@ -11171,438 +11352,16 @@ var expoPushSender = (messages) => new Promise((resolve2) => {
     },
     (res) => {
       res.resume();
-      res.on("end", () => resolve2());
+      res.on("end", () => resolve3());
     }
   );
-  req.on("error", () => resolve2());
+  req.on("error", () => resolve3());
   req.on("timeout", () => req.destroy());
   req.end(body);
 });
 function isExpoPushToken(token) {
   return /^Expo(nent)?PushToken\[[^\]]+\]$/.test(token);
 }
-
-// src/live/service.ts
-var HOST_VERSION = "1.2.7";
-var INITIAL_WINDOW = 120;
-var HISTORY_PAGE = 120;
-var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
-var POLL_MS = 1500;
-var TRACKER_IDLE_MS = Number(process.env["AGENTDECK_TRACKER_IDLE_MS"] || 10 * 60 * 1e3);
-var RpcError = class extends Error {
-};
-function summaryToDto(id, s, pending) {
-  const ws = s.workspaces?.[0];
-  const path = ws?.workspaceFolderAbsoluteUri ? uriToPath(ws.workspaceFolderAbsoluteUri) : null;
-  return {
-    id,
-    agent: "antigravity",
-    title: s.summary || "Untitled conversation",
-    status: runStatus(s.status),
-    stepCount: s.stepCount ?? 0,
-    updatedAt: s.lastModifiedTime ?? "",
-    createdAt: s.createdTime ?? "",
-    workspacePath: path,
-    workspaceName: path ? basename(path) : null,
-    repo: ws?.repository?.computedName ?? null,
-    branch: ws?.branchName ?? null,
-    pendingApprovals: pending
-  };
-}
-var AgentDeckService = class extends import_events.EventEmitter {
-  constructor(bridge, store, push, license = null) {
-    super();
-    this.bridge = bridge;
-    this.store = store;
-    this.push = push;
-    this.license = license;
-  }
-  summaries = /* @__PURE__ */ new Map();
-  list = [];
-  listKey = "";
-  trackers = /* @__PURE__ */ new Map();
-  timer = null;
-  inflight = null;
-  lastDiskLoad = 0;
-  loadedForPids = "";
-  modelCache = null;
-  /** Set by main.ts: tells phones and the dashboard when a newer Pulsar is out. */
-  updates = null;
-  start() {
-    if (this.timer) return;
-    const tick = async () => {
-      await this.poll().catch(() => void 0);
-      this.timer = setTimeout(tick, POLL_MS);
-    };
-    void tick();
-  }
-  stop() {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-  }
-  // ---------- polling ----------
-  /** Concurrent callers share one in-flight poll. */
-  poll() {
-    if (!this.inflight) this.inflight = this.doPoll().finally(() => this.inflight = null);
-    return this.inflight;
-  }
-  async doPoll() {
-    {
-      const pids = (await this.bridge.ensureServers()).map((s) => s.pid).join(",");
-      if (pids && (pids !== this.loadedForPids || Date.now() - this.lastDiskLoad > 10 * 6e4)) {
-        this.loadedForPids = pids;
-        this.lastDiskLoad = Date.now();
-        void this.bridge.loadRecentFromDisk().then((n) => n ? this.poll() : void 0).catch(() => 0);
-      }
-      const prev = this.summaries;
-      this.summaries = await this.bridge.listConversations();
-      for (const [id, s] of this.summaries) {
-        const before = prev.get(id);
-        const status2 = runStatus(s.status);
-        const tracker = this.trackers.get(id);
-        if (status2 === "running" || status2 === "busy" || tracker && tracker.subscribers > 0) {
-          const t = tracker ?? this.createTracker(id, Math.max(0, (s.stepCount ?? 0) - 30));
-          if ((s.stepCount ?? 0) !== t.stepCount || status2 !== "idle" || t.unsettledFrom < t.stepCount) {
-            await this.refreshTracker(t).catch(() => void 0);
-          }
-        }
-        if (before && runStatus(before.status) === "running" && status2 === "idle") {
-          void this.notify("Agent finished", "Your task is done. Open Pulsar to see the result.", id);
-        }
-      }
-      this.evictIdleTrackers();
-      this.publishList();
-    }
-  }
-  evictIdleTrackers() {
-    const now = Date.now();
-    for (const [id, t] of this.trackers) {
-      const status2 = runStatus(this.summaries.get(id)?.status);
-      if (t.subscribers > 0 || status2 === "running" || status2 === "busy") t.lastActive = now;
-      else if (now - t.lastActive > TRACKER_IDLE_MS || !this.summaries.has(id)) this.trackers.delete(id);
-    }
-  }
-  createTracker(id, from) {
-    const t = {
-      id,
-      unsettledFrom: from,
-      stepCount: from,
-      items: /* @__PURE__ */ new Map(),
-      raw: /* @__PURE__ */ new Map(),
-      firstLoaded: from,
-      subscribers: 0,
-      notifiedApprovals: /* @__PURE__ */ new Set(),
-      lastActive: Date.now()
-    };
-    this.trackers.set(id, t);
-    return t;
-  }
-  async refreshTracker(t) {
-    const steps = await this.bridge.getSteps(t.id, t.unsettledFrom);
-    const changed = [];
-    let newUnsettled = -1;
-    steps.forEach((step, i) => {
-      const idx = t.unsettledFrom + i;
-      t.raw.set(idx, step);
-      const item = stepToItem(step, idx);
-      const prev = t.items.get(idx);
-      if (item && JSON.stringify(item) !== JSON.stringify(prev)) {
-        t.items.set(idx, item);
-        changed.push(item);
-      } else if (!item && prev) {
-        t.items.delete(idx);
-      }
-      if (!isSettled(step) && newUnsettled < 0) newUnsettled = idx;
-      if (item?.kind === "approval" && !t.notifiedApprovals.has(idx)) {
-        t.notifiedApprovals.add(idx);
-        void this.notify("Approval needed", "The agent is waiting for you. Approve or deny from here, or open Pulsar to review.", t.id, { categoryId: "approval", approvalIdx: String(idx) });
-      }
-    });
-    for (const [idx, step] of t.raw) if (isSettled(step)) t.raw.delete(idx);
-    t.stepCount = t.unsettledFrom + steps.length;
-    t.unsettledFrom = newUnsettled >= 0 ? newUnsettled : t.stepCount;
-    if (changed.length) this.emit("items", { id: t.id, items: changed });
-    return changed;
-  }
-  pendingFor(id) {
-    const t = this.trackers.get(id);
-    if (!t) return 0;
-    let n = 0;
-    for (const item of t.items.values()) if (item.kind === "approval" && !item.resolved) n++;
-    return n;
-  }
-  publishList() {
-    this.list = [...this.summaries.entries()].map(([id, s]) => summaryToDto(id, s, this.pendingFor(id))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    const key = JSON.stringify(this.list.map((c) => [c.id, c.status, c.stepCount, c.title, c.pendingApprovals]));
-    if (key !== this.listKey) {
-      this.listKey = key;
-      this.emit("conversations", this.list);
-    }
-  }
-  async notify(title, body, conversationId, opts = {}) {
-    const tokens = this.store.listDevices().map((d) => d.pushToken).filter((t) => !!t && isExpoPushToken(t));
-    if (!tokens.length) return;
-    const data = { conversationId };
-    if (opts.approvalIdx) data["approvalIdx"] = opts.approvalIdx;
-    await this.push(tokens.map((to) => ({ to, title, body, data, ...opts.categoryId ? { categoryId: opts.categoryId } : {} })));
-  }
-  // ---------- RPC surface ----------
-  async hostInfo() {
-    await this.bridge.ensureServers();
-    return {
-      hostId: this.store.config.hostId,
-      hostName: this.store.config.hostName,
-      version: HOST_VERSION,
-      antigravity: {
-        connected: this.bridge.serverCount > 0,
-        servers: this.bridge.serverCount,
-        error: this.bridge.lastError ?? void 0
-      },
-      platform: process.platform,
-      license: this.license ? (({ required, active, status: status2, renewsAt, message }) => ({ required, active, status: status2, renewsAt, message }))(this.license.state()) : void 0,
-      update: this.updates?.info()
-    };
-  }
-  async conversations() {
-    if (!this.summaries.size) await this.poll();
-    return this.list;
-  }
-  async workspaces() {
-    const convs = await this.conversations();
-    const map = /* @__PURE__ */ new Map();
-    for (const c of convs) {
-      if (!c.workspacePath) continue;
-      const w = map.get(c.workspacePath);
-      if (w) {
-        w.conversationCount++;
-        if (c.updatedAt > w.lastActive) w.lastActive = c.updatedAt;
-      } else {
-        map.set(c.workspacePath, {
-          path: c.workspacePath,
-          name: c.workspaceName ?? c.workspacePath,
-          repo: c.repo,
-          branch: c.branch,
-          conversationCount: 1,
-          lastActive: c.updatedAt
-        });
-      }
-    }
-    return [...map.values()].sort((a, b) => b.lastActive.localeCompare(a.lastActive));
-  }
-  async requireWorkspace(path) {
-    if (typeof path !== "string" || !path) throw new RpcError("workspacePath is required");
-    const known = (await this.workspaces()).some((w) => w.path === path);
-    if (!known) throw new RpcError("Unknown workspace");
-    if (!(0, import_fs3.existsSync)(path)) throw new RpcError("Workspace folder no longer exists");
-    return path;
-  }
-  requireConversation(id) {
-    if (typeof id !== "string" || !this.summaries.has(id)) throw new RpcError("Unknown conversation");
-    return id;
-  }
-  async open(idArg, newSubscriber = true) {
-    if (!this.summaries.size) await this.poll();
-    const id = this.requireConversation(idArg);
-    const count = this.summaries.get(id)?.stepCount ?? 0;
-    let t = this.trackers.get(id);
-    if (!t || t.firstLoaded > Math.max(0, count - INITIAL_WINDOW)) {
-      const subscribers = t?.subscribers ?? 0;
-      t = this.createTracker(id, Math.max(0, count - INITIAL_WINDOW));
-      t.subscribers = subscribers;
-    }
-    if (newSubscriber) t.subscribers++;
-    await this.refreshTracker(t);
-    const items = [...t.items.values()].sort((a, b) => a.idx - b.idx);
-    return { items, firstIdx: t.firstLoaded, hasMore: t.firstLoaded > 0, conversation: this.list.find((c) => c.id === id) ?? null };
-  }
-  close(idArg) {
-    const t = typeof idArg === "string" ? this.trackers.get(idArg) : void 0;
-    if (t && t.subscribers > 0) t.subscribers--;
-  }
-  historyInflight = /* @__PURE__ */ new Map();
-  async history(idArg, before) {
-    const id = this.requireConversation(idArg);
-    const end = typeof before === "number" ? Math.max(0, Math.floor(before)) : 0;
-    const total = this.summaries.get(id)?.stepCount ?? end;
-    const floor = Math.max(0, total - MAX_HISTORY_DEPTH);
-    const start2 = Math.max(floor, end - HISTORY_PAGE);
-    if (end <= floor) return { items: [], firstIdx: end, hasMore: false, olderOnMac: floor > 0 };
-    const t = this.trackers.get(id);
-    const inRange = (i) => i.idx >= start2 && i.idx < end;
-    const done = (items) => ({ items: items.filter(inRange).sort((x, y) => x.idx - y.idx), firstIdx: start2, hasMore: start2 > floor, olderOnMac: start2 <= floor && floor > 0 });
-    if (t && t.firstLoaded <= start2) {
-      t.lastActive = Date.now();
-      return done([...t.items.values()]);
-    }
-    const k = `${id}:${start2}`;
-    let pending = this.historyInflight.get(k);
-    if (!pending) {
-      pending = (async () => {
-        const steps = await this.bridge.getSteps(id, start2);
-        const items = [];
-        steps.slice(0, end - start2).forEach((st, i) => {
-          const item = stepToItem(st, start2 + i);
-          if (item) items.push(item);
-        });
-        const tr = this.trackers.get(id);
-        if (tr) {
-          for (const item of items) if (!tr.items.has(item.idx)) tr.items.set(item.idx, item);
-          tr.firstLoaded = Math.min(tr.firstLoaded, start2);
-        }
-        return items;
-      })().finally(() => this.historyInflight.delete(k));
-      this.historyInflight.set(k, pending);
-    }
-    return done(await pending);
-  }
-  async models() {
-    if (this.modelCache && Date.now() - this.modelCache.at < 5 * 6e4) return this.modelCache.value;
-    const { models, defaultModel } = await this.bridge.listModels();
-    const value = { models: models.map((m) => ({ id: m.model, label: m.label })), defaultModel };
-    this.modelCache = { at: Date.now(), value };
-    return value;
-  }
-  async resolveModel(model) {
-    const { models, defaultModel } = await this.models();
-    if (typeof model === "string" && models.some((m) => m.id === model)) return model;
-    if (!defaultModel) throw new RpcError("No Antigravity model is available");
-    return defaultModel;
-  }
-  parseImages(images) {
-    if (!Array.isArray(images)) return [];
-    return images.slice(0, 6).flatMap((img) => {
-      const mime = String(img?.mimeType ?? "image/jpeg");
-      const data = String(img?.base64 ?? "");
-      if (!/^image\/(png|jpe?g|gif|webp|heic)$/.test(mime) || !data) return [];
-      if (data.length > 14 * 1024 * 1024) throw new RpcError("Image is too large (max ~10 MB)");
-      return [{ base64Data: data, mimeType: mime }];
-    });
-  }
-  async send(params) {
-    const id = this.requireConversation(params?.id);
-    const text = String(params?.text ?? "").trim();
-    const images = this.parseImages(params?.images);
-    if (!text && !images.length) throw new RpcError("Message is empty");
-    await this.bridge.sendMessage(id, text, { model: await this.resolveModel(params?.model), images });
-    void this.poll();
-    return { ok: true };
-  }
-  async startConversation(params) {
-    const path = await this.requireWorkspace(params?.workspacePath);
-    const text = String(params?.text ?? "").trim();
-    const images = this.parseImages(params?.images);
-    if (!text) throw new RpcError("Describe the task to start a conversation");
-    const model = await this.resolveModel(params?.model);
-    const id = await this.bridge.startConversation((0, import_url.pathToFileURL)(path).href);
-    await this.bridge.sendMessage(id, text, { model, images });
-    await this.poll();
-    return { id };
-  }
-  async cancel(idArg) {
-    const id = this.requireConversation(idArg);
-    await this.bridge.cancel(id);
-    void this.poll();
-    return { ok: true };
-  }
-  async respondApproval(params) {
-    const id = this.requireConversation(params?.id);
-    const idx = Number(params?.idx);
-    const t = this.trackers.get(id);
-    let step = t?.raw.get(idx);
-    if (!step) {
-      const [fresh] = await this.bridge.getSteps(id, idx);
-      step = fresh;
-    }
-    if (!step || stepState(step.status) !== "waiting") throw new RpcError("This approval is no longer pending");
-    const info = step.metadata?.sourceTrajectoryStepInfo ?? {};
-    const interaction = buildInteraction(step, info.trajectoryId ?? "", Number(info.stepIndex ?? idx), params?.allow === true);
-    await this.bridge.interact(id, interaction);
-    if (t) {
-      const item = t.items.get(idx);
-      if (item?.kind === "approval") {
-        const resolved = { ...item, resolved: true };
-        t.items.set(idx, resolved);
-        this.emit("items", { id, items: [resolved] });
-      }
-      t.unsettledFrom = Math.min(t.unsettledFrom, idx);
-    }
-    void this.poll();
-    return { ok: true };
-  }
-  async changes(params) {
-    const path = await this.requireWorkspace(params?.workspacePath);
-    const [files, branch] = await Promise.all([changedFiles(path), currentBranch(path)]);
-    return { files, branch };
-  }
-  async diff(params) {
-    const path = await this.requireWorkspace(params?.workspacePath);
-    if (typeof params?.path !== "string") throw new RpcError("path is required");
-    return fileDiff(path, params.path);
-  }
-  /** Dispatches one RPC. `deviceId` is the authenticated caller. */
-  async dispatch(deviceId, method, p, ctx) {
-    try {
-      const FREE = ["host.info", "devices.list", "devices.revoke", "push.register"];
-      if (this.license && !FREE.includes(method)) {
-        const l = this.license.state();
-        if (!l.active) throw new RpcError(`LICENSE_REQUIRED: ${l.message} Open the Pulsar dashboard on your computer to activate.`);
-      }
-      switch (method) {
-        case "host.info":
-          return await this.hostInfo();
-        case "conversations.list":
-          return await this.conversations();
-        case "workspaces.list":
-          return await this.workspaces();
-        case "conversation.open": {
-          const id = this.requireConversation(p?.id);
-          return await this.open(id, ctx.subscribe(id));
-        }
-        case "conversation.close":
-          if (ctx.unsubscribe(p?.id)) this.close(p?.id);
-          return { ok: true };
-        case "conversation.history":
-          return await this.history(p?.id, p?.before);
-        case "conversation.send":
-          return await this.send(p);
-        case "conversation.start":
-          return await this.startConversation(p);
-        case "conversation.focus":
-          await this.bridge.focus(this.requireConversation(p?.id));
-          return { ok: true };
-        case "conversation.cancel":
-          return await this.cancel(p?.id);
-        case "approval.respond":
-          return await this.respondApproval(p);
-        case "models.list":
-          return await this.models();
-        case "changes.list":
-          return await this.changes(p);
-        case "changes.diff":
-          return await this.diff(p);
-        case "push.register": {
-          const token = typeof p?.token === "string" ? p.token : "";
-          if (token && !isExpoPushToken(token)) throw new RpcError("Invalid push token");
-          this.store.updateDevice(deviceId, { pushToken: token || void 0 });
-          return { ok: true };
-        }
-        case "devices.list":
-          return this.store.listDevices().map(({ key: _key, pushToken, ...d }) => ({ ...d, push: !!pushToken, current: d.deviceId === deviceId }));
-        case "devices.revoke": {
-          if (p?.deviceId !== void 0 && p.deviceId !== deviceId) throw new RpcError("Remove other phones from the Pulsar dashboard on your computer");
-          const removed = this.store.removeDevice(deviceId);
-          this.emit("revoked", deviceId);
-          return { ok: removed };
-        }
-        default:
-          throw new RpcError(`Unknown method ${method}`);
-      }
-    } catch (e) {
-      if (e instanceof RpcError || e instanceof AntigravityError) throw e;
-      throw new RpcError(e.message || "Host error");
-    }
-  }
-};
 
 // src/live/wire.ts
 var import_tweetnacl = __toESM(require_nacl_fast());
@@ -11710,6 +11469,1955 @@ function encodePairingQr(p) {
   if (p.relay) q.push(`r=${encodeURIComponent(p.relay)}`);
   return `agentdeck://pair?${q.join("&")}`;
 }
+function formatWakeOnLanPacket(mac) {
+  const hex = mac.trim().replace(/[:-]/g, "");
+  if (!/^[0-9a-fA-F]{12}$/.test(hex)) throw new Error("Invalid MAC address (expected XX:XX:XX:XX:XX:XX)");
+  const macBytes = new Uint8Array(6);
+  for (let i = 0; i < 6; i++) macBytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  const packet = new Uint8Array(102);
+  packet.fill(255, 0, 6);
+  for (let i = 0; i < 16; i++) packet.set(macBytes, 6 + i * 6);
+  return packet;
+}
+
+// src/live/agents/claude.ts
+var import_events = require("events");
+var import_fs3 = require("fs");
+var import_os2 = require("os");
+var import_path3 = require("path");
+
+// src/live/agents/provider.ts
+var ItemBook = class {
+  items = /* @__PURE__ */ new Map();
+  nextIdx = /* @__PURE__ */ new Map();
+  answers = /* @__PURE__ */ new Map();
+  list(id) {
+    return [...this.items.get(id)?.values() ?? []].sort((a, b) => a.idx - b.idx);
+  }
+  has(id) {
+    return this.items.has(id);
+  }
+  reset(id, items) {
+    this.items.set(id, new Map(items.map((i) => [i.idx, i])));
+    this.nextIdx.set(id, items.reduce((m, i) => Math.max(m, i.idx + 1), 0));
+  }
+  /** Adds an item (assigning the next index when `idx` is undefined); returns it. */
+  put(id, item) {
+    const m = this.items.get(id) ?? /* @__PURE__ */ new Map();
+    this.items.set(id, m);
+    const idx = item.idx ?? this.nextIdx.get(id) ?? 0;
+    const full = { ...item, idx };
+    m.set(idx, full);
+    this.nextIdx.set(id, Math.max(this.nextIdx.get(id) ?? 0, idx + 1));
+    return full;
+  }
+  get(id, idx) {
+    return this.items.get(id)?.get(idx);
+  }
+  /** Registers an approval card; resolves when the phone answers it. */
+  ask(id, card) {
+    const item = this.put(id, { ...card, kind: "approval", resolved: false });
+    const answer = new Promise((resolve3) => this.answers.set(`${id}#${item.idx}`, resolve3));
+    return { item, answer };
+  }
+  answer(id, idx, allow) {
+    const k = `${id}#${idx}`;
+    const fn = this.answers.get(k);
+    const item = this.get(id, idx);
+    if (!fn || !item || item.kind !== "approval" || item.resolved) return null;
+    this.answers.delete(k);
+    const resolved = { ...item, resolved: true };
+    this.items.get(id).set(idx, resolved);
+    fn(allow);
+    return resolved;
+  }
+  pending(id) {
+    return this.list(id).filter((i) => i.kind === "approval" && !i.resolved).length;
+  }
+  /** Denies everything still waiting (e.g. the agent process ended). */
+  denyAll(id) {
+    for (const k of [...this.answers.keys()]) {
+      if (id && !k.startsWith(`${id}#`)) continue;
+      const [cid, idx] = k.split("#");
+      this.answer(cid, Number(idx), false);
+    }
+  }
+};
+var nowIso = () => (/* @__PURE__ */ new Date()).toISOString();
+var tailText = (s, max = 1500) => s && s.length > max ? `\u2026${s.slice(-max)}` : s ?? void 0;
+
+// src/live/agents/claude.ts
+var HOOK_MARKER = "/local/hooks/claude";
+function defaultClaudeSettingsPath() {
+  return process.env["AGENTDECK_CLAUDE_SETTINGS"] || (0, import_path3.join)((0, import_os2.homedir)(), ".claude", "settings.json");
+}
+function isClaudeHooksInstalled(settingsPath = defaultClaudeSettingsPath()) {
+  try {
+    if (!(0, import_fs3.existsSync)(settingsPath)) return false;
+    const raw = (0, import_fs3.readFileSync)(settingsPath, "utf8");
+    return raw.includes(HOOK_MARKER);
+  } catch {
+    return false;
+  }
+}
+function installClaudeHooks(port, enable, settingsPath = defaultClaudeSettingsPath()) {
+  try {
+    let cfg = {};
+    if ((0, import_fs3.existsSync)(settingsPath)) {
+      try {
+        cfg = JSON.parse((0, import_fs3.readFileSync)(settingsPath, "utf8"));
+      } catch {
+        cfg = {};
+      }
+    }
+    const hooks = typeof cfg.hooks === "object" && cfg.hooks ? { ...cfg.hooks } : {};
+    const stripOurs = (arr) => Array.isArray(arr) ? arr.filter((entry) => !JSON.stringify(entry).includes(HOOK_MARKER)) : [];
+    hooks.PermissionRequest = stripOurs(hooks.PermissionRequest);
+    hooks.Stop = stripOurs(hooks.Stop);
+    if (enable) {
+      const cmd2 = `curl -sS -X POST http://127.0.0.1:${port}${HOOK_MARKER} -H "Content-Type: application/json" -H "X-AgentDeck: 1" --data-binary @-`;
+      hooks.PermissionRequest.push({
+        matcher: "*",
+        hooks: [{ type: "command", command: cmd2 }]
+      });
+      hooks.Stop.push({
+        matcher: "*",
+        hooks: [{ type: "command", command: cmd2 }]
+      });
+    } else {
+      if (!hooks.PermissionRequest.length) delete hooks.PermissionRequest;
+      if (!hooks.Stop.length) delete hooks.Stop;
+    }
+    cfg.hooks = Object.keys(hooks).length ? hooks : void 0;
+    (0, import_fs3.mkdirSync)((0, import_path3.dirname)(settingsPath), { recursive: true });
+    (0, import_fs3.writeFileSync)(settingsPath, JSON.stringify(cfg, null, 2), { mode: 384 });
+    return enable;
+  } catch {
+    return false;
+  }
+}
+var PREFIX = "claude:";
+var toolKind = (name) => name === "Bash" ? "command" : ["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(name) ? "edit" : name === "Read" ? "view" : ["Grep", "Glob"].includes(name) ? "search" : ["WebFetch", "WebSearch"].includes(name) ? "web" : name.startsWith("mcp__") ? "mcp" : "other";
+function describeTool(name, input) {
+  if (name === "Bash") return { title: input?.command ?? "Command", detail: input?.description };
+  if (["Edit", "Write", "MultiEdit"].includes(name)) return { title: `${name === "Write" ? "Write" : "Edit"} ${(0, import_path3.basename)(String(input?.file_path ?? "file"))}`, detail: input?.file_path };
+  if (name === "Read") return { title: `Read ${(0, import_path3.basename)(String(input?.file_path ?? "file"))}` };
+  if (name === "Grep" || name === "Glob") return { title: `Search ${input?.pattern ?? ""}`.trim() };
+  if (name === "WebFetch") return { title: `Fetch ${input?.url ?? ""}`.trim() };
+  if (name === "WebSearch") return { title: `Search the web: ${input?.query ?? ""}`.trim() };
+  return { title: name };
+}
+function loadClaudeKey(dir) {
+  if (process.env["ANTHROPIC_API_KEY"]) return process.env["ANTHROPIC_API_KEY"];
+  try {
+    const f = (0, import_path3.join)(dir, "claude.json");
+    return (0, import_fs3.existsSync)(f) ? JSON.parse((0, import_fs3.readFileSync)(f, "utf8")).apiKey ?? null : null;
+  } catch {
+    return null;
+  }
+}
+var ClaudeProvider = class extends import_events.EventEmitter {
+  constructor(dir, queryFn) {
+    super();
+    this.dir = dir;
+    this.file = (0, import_path3.join)(dir, "claude-sessions.json");
+    this.queryFn = queryFn ?? null;
+    try {
+      this.sessions = (0, import_fs3.existsSync)(this.file) ? JSON.parse((0, import_fs3.readFileSync)(this.file, "utf8")) : {};
+    } catch {
+      this.sessions = {};
+    }
+  }
+  id = "claude";
+  kind = "claude";
+  label = "Claude";
+  prefix = PREFIX;
+  book = new ItemBook();
+  sessions;
+  file;
+  running = /* @__PURE__ */ new Map();
+  toolIdx = /* @__PURE__ */ new Map();
+  queryFn;
+  save() {
+    (0, import_fs3.writeFileSync)(this.file, JSON.stringify(this.sessions, null, 2), { mode: 384 });
+  }
+  async query() {
+    if (this.queryFn) return this.queryFn;
+    try {
+      const sdk = await import("@anthropic-ai/claude-agent-sdk");
+      this.queryFn = sdk.query;
+    } catch {
+      this.queryFn = null;
+    }
+    return this.queryFn;
+  }
+  async available() {
+    return !!loadClaudeKey(this.dir) && !!await this.query();
+  }
+  summary(s) {
+    const id = PREFIX + s.sessionId;
+    return {
+      id,
+      agent: "claude",
+      title: s.title,
+      status: this.running.has(id) ? "running" : "idle",
+      stepCount: this.book.list(id).length,
+      updatedAt: s.updatedAt,
+      createdAt: s.createdAt,
+      workspacePath: s.cwd,
+      workspaceName: (0, import_path3.basename)(s.cwd),
+      repo: null,
+      branch: null,
+      pendingApprovals: this.book.pending(id)
+    };
+  }
+  async conversations() {
+    return Object.values(this.sessions).map((s) => this.summary(s)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+  async open(id) {
+    const s = this.sessions[id.slice(PREFIX.length)];
+    if (!s) throw new Error("Unknown conversation");
+    return { items: this.book.list(id), firstIdx: 0, hasMore: false, conversation: this.summary(s) };
+  }
+  close() {
+  }
+  /** Runs one turn (new session when `resume` is undefined); returns the session id once known. */
+  async run(cwd, text, resume, model) {
+    const q = await this.query();
+    const key = loadClaudeKey(this.dir);
+    if (!q || !key) throw new Error("Claude needs an Anthropic API key on this computer");
+    let id = resume ? PREFIX + resume : "";
+    let resolveId = () => void 0;
+    const known = new Promise((r) => resolveId = r);
+    if (id) resolveId(id);
+    const at = nowIso();
+    const pendingUser = { kind: "user", at, text, images: 0 };
+    if (id) this.emit("items", { id, items: [this.book.put(id, pendingUser)] });
+    const it = q({
+      prompt: text,
+      options: {
+        cwd,
+        ...resume ? { resume } : {},
+        ...model ? { model } : {},
+        env: { ...process.env, ANTHROPIC_API_KEY: key },
+        // Every tool use is decided on the phone.
+        canUseTool: async (name, input) => {
+          const sid = await known;
+          const d = describeTool(name, input);
+          const { item, answer } = this.book.ask(sid, { at: nowIso(), trajectoryId: name, approvalType: name === "Bash" ? "runCommand" : "tool", title: name === "Bash" ? "Run this command?" : `Allow: ${d.title}?`, detail: name === "Bash" ? input?.command : d.detail ?? d.title });
+          this.emit("items", { id: sid, items: [item] });
+          this.emit("conversations");
+          this.emit("approval", { id: sid, idx: item.idx });
+          return await answer ? { behavior: "allow", updatedInput: input } : { behavior: "deny", message: "The owner denied this from their phone." };
+        }
+      }
+    });
+    void (async () => {
+      try {
+        for await (const m of it) {
+          if (m?.type === "system" && m.subtype === "init" && m.session_id && !id) {
+            id = PREFIX + m.session_id;
+            this.sessions[m.session_id] = { sessionId: m.session_id, cwd, title: text.split("\n")[0].slice(0, 80), createdAt: at, updatedAt: at };
+            this.save();
+            this.book.reset(id, []);
+            this.running.set(id, { interrupt: it.interrupt?.bind(it) });
+            this.emit("items", { id, items: [this.book.put(id, pendingUser)] });
+            this.emit("conversations");
+            resolveId(id);
+            continue;
+          }
+          if (!id) continue;
+          this.onMessage(id, m);
+        }
+      } catch (e) {
+        if (id) this.emit("items", { id, items: [this.book.put(id, { kind: "error", at: nowIso(), text: e.message })] });
+      } finally {
+        if (id) {
+          this.running.delete(id);
+          const s = this.sessions[id.slice(PREFIX.length)];
+          if (s) {
+            s.updatedAt = nowIso();
+            this.save();
+          }
+          this.book.denyAll(id);
+          this.emit("conversations");
+          this.emit("finished", { id });
+        }
+      }
+    })();
+    if (id) this.running.set(id, { interrupt: it.interrupt?.bind(it) });
+    return known;
+  }
+  onMessage(id, m) {
+    const changed = [];
+    if (m.type === "assistant") {
+      for (const c of m.message?.content ?? []) {
+        if (c.type === "text" && c.text) changed.push(this.book.put(id, { kind: "agent", at: nowIso(), text: c.text }));
+        if (c.type === "tool_use") {
+          const d = describeTool(c.name, c.input);
+          const item = this.book.put(id, { kind: "tool", at: nowIso(), tool: toolKind(c.name), title: d.title, detail: d.detail, status: "running" });
+          this.toolIdx.set(`${id}#${c.id}`, item.idx);
+          changed.push(item);
+        }
+      }
+    }
+    if (m.type === "user") {
+      for (const c of m.message?.content ?? []) {
+        if (c.type !== "tool_result") continue;
+        const idx = this.toolIdx.get(`${id}#${c.tool_use_id}`);
+        const prev = idx !== void 0 ? this.book.get(id, idx) : void 0;
+        if (prev?.kind !== "tool") continue;
+        const out = typeof c.content === "string" ? c.content : (c.content ?? []).map((x) => x.text ?? "").join("");
+        changed.push(this.book.put(id, { ...prev, detail: tailText(out) ?? prev.detail, status: c.is_error ? "error" : "done" }));
+      }
+    }
+    if (m.type === "result" && m.subtype && m.subtype !== "success") changed.push(this.book.put(id, { kind: "error", at: nowIso(), text: "Claude stopped before finishing." }));
+    if (changed.length) this.emit("items", { id, items: changed });
+  }
+  async send(id, text) {
+    const s = this.sessions[id.slice(PREFIX.length)];
+    if (!s) throw new Error("Unknown conversation");
+    if (this.running.has(id)) throw new Error("Claude is still working on the last message");
+    await this.run(s.cwd, text, s.sessionId);
+  }
+  async start(workspacePath, text, model) {
+    return { id: await this.run(workspacePath, text, void 0, model) };
+  }
+  async cancel(id) {
+    this.book.denyAll(id);
+    await this.running.get(id)?.interrupt?.();
+  }
+  async respondApproval(id, idx, allow) {
+    const resolved = this.book.answer(id, idx, allow);
+    if (!resolved) throw new Error("This approval is no longer pending");
+    this.emit("items", { id, items: [resolved] });
+    this.emit("conversations");
+  }
+  approvalItem(id, idx) {
+    const i = this.book.get(id, idx);
+    return i?.kind === "approval" ? i : null;
+  }
+  /**
+   * Handles incoming Claude Code CLI hook payloads (`PermissionRequest` and `Stop`)
+   * from terminal sessions started manually on the computer.
+   */
+  async handleHookEvent(payload) {
+    const rawSession = String(payload?.session_id || "terminal").replace(/[^a-zA-Z0-9_-]/g, "");
+    const sessionId = `hook-${rawSession}`;
+    const id = PREFIX + sessionId;
+    const cwd = String(payload?.cwd || process.cwd());
+    const at = nowIso();
+    const eventName = String(payload?.hook_event_name || "PermissionRequest");
+    if (!this.sessions[sessionId]) {
+      this.sessions[sessionId] = {
+        sessionId,
+        cwd,
+        title: `Claude CLI (${(0, import_path3.basename)(cwd) || "terminal"})`,
+        createdAt: at,
+        updatedAt: at
+      };
+      this.save();
+    } else {
+      this.sessions[sessionId].updatedAt = at;
+      this.save();
+    }
+    if (eventName === "Stop") {
+      this.running.delete(id);
+      this.book.denyAll(id);
+      this.emit("conversations");
+      this.emit("finished", { id });
+      return { allow: true };
+    }
+    const toolName = String(payload?.tool_name || "Bash");
+    const input = payload?.tool_input ?? {};
+    const d = describeTool(toolName, input);
+    this.running.set(id, {});
+    const { item, answer } = this.book.ask(id, {
+      at,
+      trajectoryId: toolName,
+      approvalType: toolName === "Bash" ? "runCommand" : "tool",
+      title: toolName === "Bash" ? "Run this command?" : `Allow: ${d.title}?`,
+      detail: toolName === "Bash" ? String(input?.command ?? d.title) : d.detail ?? d.title
+    });
+    this.emit("items", { id, items: [item] });
+    this.emit("conversations");
+    this.emit("approval", { id, idx: item.idx });
+    const allow = await answer;
+    if (this.book.pending(id) === 0) this.running.delete(id);
+    this.emit("conversations");
+    return allow ? { allow: true } : { allow: false, message: "The owner denied this from their phone in Pulsar." };
+  }
+  stop() {
+    for (const [id, r] of this.running) {
+      this.book.denyAll(id);
+      void r.interrupt?.();
+    }
+  }
+};
+
+// src/live/agents/api.ts
+var import_events2 = require("events");
+var import_child_process3 = require("child_process");
+var import_fs4 = require("fs");
+var import_path4 = require("path");
+var MODEL_API_PRESETS = [
+  { id: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", needsKey: true, keyUrl: "https://platform.deepseek.com/api_keys" },
+  { id: "qwen", label: "Qwen", baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", model: "qwen3-coder-plus", needsKey: true, keyUrl: "https://modelstudio.console.alibabacloud.com/" },
+  { id: "kimi", label: "Kimi", baseUrl: "https://api.moonshot.ai/v1", model: "kimi-k2-0905-preview", needsKey: true, keyUrl: "https://platform.moonshot.ai/console/api-keys" },
+  { id: "openrouter", label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", model: "qwen/qwen3-coder", needsKey: true, keyUrl: "https://openrouter.ai/keys" },
+  { id: "ollama-cloud", label: "Ollama Cloud", baseUrl: "https://ollama.com/v1", model: "qwen3-coder:480b", needsKey: true, keyUrl: "https://ollama.com/settings/keys" },
+  { id: "ollama", label: "Ollama (this computer)", baseUrl: "http://127.0.0.1:11434/v1", model: "qwen2.5-coder", needsKey: false }
+];
+function loadModelApis(dir) {
+  try {
+    const f = (0, import_path4.join)(dir, "models.json");
+    const list = (0, import_fs4.existsSync)(f) ? JSON.parse((0, import_fs4.readFileSync)(f, "utf8")) : [];
+    return Array.isArray(list) ? list.filter((c) => c && c.id && c.baseUrl && c.model) : [];
+  } catch {
+    return [];
+  }
+}
+function saveModelApis(dir, list) {
+  (0, import_fs4.writeFileSync)((0, import_path4.join)(dir, "models.json"), JSON.stringify(list, null, 2), { mode: 384 });
+}
+function upsertModelApi(dir, p) {
+  const id = String(p.id ?? "").trim();
+  if (!/^[a-z0-9-]{2,30}$/.test(id)) throw new Error("Unknown model provider");
+  const list = loadModelApis(dir);
+  const rest = list.filter((c) => c.id !== id);
+  if (p.remove) {
+    saveModelApis(dir, rest);
+    return rest;
+  }
+  const preset = MODEL_API_PRESETS.find((x) => x.id === id);
+  const old = list.find((c) => c.id === id);
+  const baseUrl = String(p.baseUrl || old?.baseUrl || preset?.baseUrl || "").trim().replace(/\/+$/, "");
+  if (!/^https:\/\/|^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(`${baseUrl}/`)) throw new Error("The API address must start with https:// (or http://localhost for a model on this computer)");
+  const apiKey = typeof p.apiKey === "string" && p.apiKey.trim() ? p.apiKey.trim() : old?.apiKey;
+  if ((preset?.needsKey ?? true) && !apiKey && !/^http:\/\/(127\.0\.0\.1|localhost)/.test(baseUrl)) throw new Error("Add the API key for this provider");
+  const model = String(p.model || old?.model || preset?.model || "").trim();
+  if (!model) throw new Error("Choose a model");
+  const cfg = { id, label: String(p.label || old?.label || preset?.label || id).slice(0, 40), baseUrl, model, ...apiKey ? { apiKey } : {} };
+  const next = [...rest, cfg];
+  saveModelApis(dir, next);
+  return next;
+}
+var TOOLS = [
+  { name: "list_files", description: 'List files and folders in a directory of the project (relative path, "." for the root).', parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+  { name: "read_file", description: "Read a text file of the project.", parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+  { name: "search", description: "Search the project for text (case-insensitive); returns matching lines with file:line.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"] } },
+  { name: "write_file", description: "Create or overwrite a file with the full new content. The owner approves it first.", parameters: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } }, required: ["path", "content"] } },
+  { name: "edit_file", description: "Replace one exact snippet in a file with new text. old_text must appear exactly once. The owner approves it first.", parameters: { type: "object", properties: { path: { type: "string" }, old_text: { type: "string" }, new_text: { type: "string" } }, required: ["path", "old_text", "new_text"] } },
+  { name: "run_command", description: "Run a shell command in the project folder (tests, builds, git). The owner approves it first. Output is truncated.", parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } }
+].map((function_) => ({ type: "function", function: function_ }));
+var SYSTEM = (cwd) => [
+  "You are a careful coding agent working in one project folder on the owner's computer, controlled from their phone.",
+  `Project folder: ${cwd}. Use relative paths.`,
+  "Use the tools to look at the code before changing it. Make small, focused changes. Prefer edit_file over write_file for existing files.",
+  "File changes and commands need the owner's approval; if they deny one, do not retry it \u2014 ask or take another approach.",
+  "When done, reply with a short summary of what you changed and anything the owner should check."
+].join("\n");
+var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", "dist", "build", ".next", ".venv", "venv", "__pycache__", ".expo", "Pods", "target"]);
+var MAX_READ = 6e4;
+var MAX_STEPS = 40;
+function insideProject(cwd, p) {
+  const rel = String(p ?? ".").trim() || ".";
+  const full = (0, import_path4.resolve)(cwd, rel);
+  const r = (0, import_path4.relative)(cwd, full);
+  if (r === ".." || r.startsWith(`..${import_path4.sep}`) || (0, import_path4.isAbsolute)(r)) throw new Error("That path is outside the project folder");
+  return full;
+}
+function searchProject(cwd, query) {
+  const q = query.toLowerCase();
+  const out = [];
+  const walk = (dir, depth) => {
+    if (out.length >= 80 || depth > 8) return;
+    for (const name of (0, import_fs4.readdirSync)(dir)) {
+      if (out.length >= 80) return;
+      if (SKIP_DIRS.has(name) || name.startsWith(".env")) continue;
+      const f = (0, import_path4.join)(dir, name);
+      let st;
+      try {
+        st = (0, import_fs4.statSync)(f);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) walk(f, depth + 1);
+      else if (st.size < 1e6) {
+        const text = (0, import_fs4.readFileSync)(f, "utf8");
+        if (text.includes("\0")) continue;
+        text.split("\n").forEach((line, i) => {
+          if (out.length < 80 && line.toLowerCase().includes(q)) out.push(`${(0, import_path4.relative)(cwd, f)}:${i + 1}: ${line.trim().slice(0, 200)}`);
+        });
+      }
+    }
+  };
+  walk(cwd, 0);
+  return out.length ? out.join("\n") : "No matches.";
+}
+function runShell(cwd, command, signal) {
+  return new Promise((resolvePromise) => {
+    const shell = process.platform === "win32" ? "cmd.exe" : process.env["SHELL"] || "/bin/sh";
+    const args = process.platform === "win32" ? ["/d", "/s", "/c", command] : ["-lc", command];
+    const child = (0, import_child_process3.spawn)(shell, args, { cwd, env: process.env, signal, windowsHide: true });
+    let out = "";
+    const add = (d) => {
+      out += d.toString();
+      if (out.length > 2e5) out = out.slice(-1e5);
+    };
+    child.stdout.on("data", add);
+    child.stderr.on("data", add);
+    const timer = setTimeout(() => child.kill("SIGTERM"), 10 * 6e4);
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      resolvePromise({ code: -1, out: `${out}
+${e.message}` });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolvePromise({ code: code ?? -1, out });
+    });
+  });
+}
+var toolKind2 = (name) => name === "run_command" ? "command" : name === "write_file" || name === "edit_file" ? "edit" : name === "search" ? "search" : "view";
+var ModelApiProvider = class extends import_events2.EventEmitter {
+  constructor(cfg, dir, fetchFn = fetch) {
+    super();
+    this.cfg = cfg;
+    this.fetchFn = fetchFn;
+    this.id = `api:${cfg.id}`;
+    this.label = cfg.label;
+    this.prefix = `api:${cfg.id}:`;
+    this.file = (0, import_path4.join)(dir, "api-sessions", `${cfg.id}.json`);
+    try {
+      this.sessions = (0, import_fs4.existsSync)(this.file) ? JSON.parse((0, import_fs4.readFileSync)(this.file, "utf8")) : {};
+    } catch {
+      this.sessions = {};
+    }
+    for (const s of Object.values(this.sessions)) this.book.reset(this.prefix + s.id, s.items ?? []);
+  }
+  kind = "api";
+  id;
+  label;
+  prefix;
+  book = new ItemBook();
+  sessions;
+  file;
+  running = /* @__PURE__ */ new Map();
+  save() {
+    (0, import_fs4.mkdirSync)((0, import_path4.dirname)(this.file), { recursive: true, mode: 448 });
+    for (const s of Object.values(this.sessions)) s.items = this.book.list(this.prefix + s.id).slice(-400);
+    (0, import_fs4.writeFileSync)(this.file, JSON.stringify(this.sessions), { mode: 384 });
+  }
+  async available() {
+    if (this.cfg.apiKey) return true;
+    try {
+      const r = await this.fetchFn(`${this.cfg.baseUrl}/models`, { method: "GET", headers: {}, signal: AbortSignal.timeout(1500) });
+      if (!r.ok) return false;
+      const ids = ((await r.json().catch(() => null))?.data ?? []).map((m) => String(m.id));
+      if (ids.length && !ids.includes(this.cfg.model)) this.cfg.model = ids.find((m) => /coder|code|deepseek|qwen/i.test(m)) ?? ids[0];
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  summary(s) {
+    const id = this.prefix + s.id;
+    return {
+      id,
+      agent: "api",
+      agentLabel: this.label,
+      title: s.title,
+      status: this.running.has(id) ? "running" : "idle",
+      stepCount: this.book.list(id).length,
+      updatedAt: s.updatedAt,
+      createdAt: s.createdAt,
+      workspacePath: s.cwd,
+      workspaceName: (0, import_path4.basename)(s.cwd),
+      repo: null,
+      branch: null,
+      pendingApprovals: this.book.pending(id)
+    };
+  }
+  async conversations() {
+    return Object.values(this.sessions).map((s) => this.summary(s)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+  session(id) {
+    const s = this.sessions[id.slice(this.prefix.length)];
+    if (!s) throw new Error("Unknown conversation");
+    return s;
+  }
+  async open(id) {
+    const s = this.session(id);
+    return { items: this.book.list(id), firstIdx: 0, hasMore: false, conversation: this.summary(s) };
+  }
+  close() {
+  }
+  put(id, item) {
+    const full = this.book.put(id, item);
+    this.emit("items", { id, items: [full] });
+    return full;
+  }
+  async start(workspacePath, text, model) {
+    const sid = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    const at = nowIso();
+    this.sessions[sid] = { id: sid, cwd: workspacePath, title: text.split("\n")[0].slice(0, 80), model: model || this.cfg.model, createdAt: at, updatedAt: at, messages: [{ role: "system", content: SYSTEM(workspacePath) }], items: [] };
+    const id = this.prefix + sid;
+    this.book.reset(id, []);
+    this.save();
+    void this.turn(id, text);
+    return { id };
+  }
+  async send(id, text) {
+    this.session(id);
+    if (this.running.has(id)) throw new Error(`${this.label} is still working on the last message`);
+    void this.turn(id, text);
+  }
+  async cancel(id) {
+    this.book.denyAll(id);
+    this.running.get(id)?.abort();
+  }
+  async respondApproval(id, idx, allow) {
+    const resolved = this.book.answer(id, idx, allow);
+    if (!resolved) throw new Error("This approval is no longer pending");
+    this.emit("items", { id, items: [resolved] });
+    this.emit("conversations");
+  }
+  approvalItem(id, idx) {
+    const i = this.book.get(id, idx);
+    return i?.kind === "approval" ? i : null;
+  }
+  stop() {
+    for (const [id, c] of this.running) {
+      this.book.denyAll(id);
+      c.abort();
+    }
+  }
+  async chat(s, signal) {
+    const headers = { "Content-Type": "application/json" };
+    if (this.cfg.apiKey) headers["Authorization"] = `Bearer ${this.cfg.apiKey}`;
+    if (this.cfg.baseUrl.includes("openrouter.ai")) {
+      headers["HTTP-Referer"] = "https://agentdeck.finnova.com.au";
+      headers["X-Title"] = "Pulsar";
+    }
+    const r = await this.fetchFn(`${this.cfg.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model: s.model, messages: s.messages, tools: TOOLS, tool_choice: "auto" }),
+      signal
+    });
+    if (!r.ok) {
+      const body = await r.text().catch(() => "");
+      let msg = body.slice(0, 300);
+      try {
+        const j2 = JSON.parse(body);
+        msg = j2?.error?.message ?? j2?.message ?? msg;
+      } catch {
+      }
+      throw new Error(r.status === 401 || r.status === 403 ? `${this.label} rejected the API key (${msg || r.status}). Update it in Pulsar \u2192 Settings \u2192 Model APIs.` : `${this.label} error ${r.status}: ${msg}`);
+    }
+    const j = await r.json();
+    const m = j?.choices?.[0]?.message;
+    if (!m) throw new Error(`${this.label} sent an empty answer`);
+    return { role: "assistant", content: m.content ?? null, ...m.tool_calls?.length ? { tool_calls: m.tool_calls } : {}, ...m.reasoning_content ? { reasoning_content: m.reasoning_content } : {} };
+  }
+  /** Asks the phone; resolves true when allowed. */
+  async ask(id, title, detail, approvalType) {
+    const { item, answer } = this.book.ask(id, { at: nowIso(), trajectoryId: approvalType, approvalType, title, detail });
+    this.emit("items", { id, items: [item] });
+    this.emit("conversations");
+    this.emit("approval", { id, idx: item.idx });
+    return answer;
+  }
+  async runTool(id, s, name, args, signal) {
+    const cwd = s.cwd;
+    const rel = (p) => (0, import_path4.relative)(cwd, insideProject(cwd, p)) || ".";
+    const title = name === "run_command" ? String(args.command ?? "") : name === "search" ? `Search ${args.query ?? ""}` : name === "list_files" ? `List ${rel(args.path)}` : `${name === "read_file" ? "Read" : name === "write_file" ? "Write" : "Edit"} ${rel(args.path)}`;
+    const step = this.put(id, { kind: "tool", at: nowIso(), tool: toolKind2(name), title, status: "running" });
+    const finish = (status2, detail, exitCode) => this.put(id, { ...step, status: status2, detail: tailText(detail), ...exitCode !== void 0 ? { exitCode } : {} });
+    try {
+      switch (name) {
+        case "list_files": {
+          const dir = insideProject(cwd, args.path);
+          const names = (0, import_fs4.readdirSync)(dir).filter((n) => !SKIP_DIRS.has(n)).slice(0, 300).map((n) => (0, import_fs4.statSync)((0, import_path4.join)(dir, n)).isDirectory() ? `${n}/` : n);
+          finish("done");
+          return names.join("\n") || "(empty)";
+        }
+        case "read_file": {
+          const f = insideProject(cwd, args.path);
+          if ((0, import_path4.basename)(f).startsWith(".env")) throw new Error("Pulsar does not let agents read .env files (they hold secrets)");
+          const text = (0, import_fs4.readFileSync)(f, "utf8");
+          finish("done");
+          return text.length > MAX_READ ? `${text.slice(0, MAX_READ)}
+\u2026(truncated, ${text.length} characters)` : text;
+        }
+        case "search": {
+          const out = searchProject(cwd, String(args.query ?? ""));
+          finish("done");
+          return out;
+        }
+        case "write_file":
+        case "edit_file": {
+          const f = insideProject(cwd, args.path);
+          let next;
+          if (name === "edit_file") {
+            const cur = (0, import_fs4.readFileSync)(f, "utf8");
+            const oldText = String(args.old_text ?? "");
+            const n = oldText ? cur.split(oldText).length - 1 : 0;
+            if (n !== 1) throw new Error(n ? "old_text appears more than once; include more surrounding lines" : "old_text was not found in the file");
+            next = cur.replace(oldText, () => String(args.new_text ?? ""));
+          } else next = String(args.content ?? "");
+          const preview = name === "edit_file" ? `- ${String(args.old_text).slice(0, 600)}
++ ${String(args.new_text).slice(0, 600)}` : `${rel(args.path)} (${next.length} characters)
+${next.slice(0, 800)}`;
+          if (!await this.ask(id, `${name === "edit_file" ? "Edit" : "Write"} ${rel(args.path)}?`, preview, "edit")) {
+            finish("canceled", "Denied on the phone");
+            return "The owner denied this change.";
+          }
+          (0, import_fs4.mkdirSync)((0, import_path4.dirname)(f), { recursive: true });
+          (0, import_fs4.writeFileSync)(f, next);
+          finish("done");
+          return "Done.";
+        }
+        case "run_command": {
+          const command = String(args.command ?? "").trim();
+          if (!command) throw new Error("Empty command");
+          if (!await this.ask(id, "Run this command?", command, "runCommand")) {
+            finish("canceled", "Denied on the phone");
+            return "The owner denied this command.";
+          }
+          const { code, out } = await runShell(cwd, command, signal);
+          finish(code === 0 ? "done" : "error", out, code);
+          return `Exit code ${code}
+${out.slice(-2e4)}`;
+        }
+        default:
+          throw new Error(`Unknown tool ${name}`);
+      }
+    } catch (e) {
+      finish("error", e.message);
+      return `Error: ${e.message}`;
+    }
+  }
+  async turn(id, text) {
+    const s = this.session(id);
+    const ctl = new AbortController();
+    this.running.set(id, ctl);
+    s.messages.push({ role: "user", content: text });
+    this.put(id, { kind: "user", at: nowIso(), text, images: 0 });
+    this.emit("conversations");
+    try {
+      for (let step = 0; step < MAX_STEPS; step++) {
+        const m = await this.chat(s, ctl.signal);
+        s.messages.push(m);
+        if (m.content?.trim()) this.put(id, { kind: "agent", at: nowIso(), text: m.content.trim(), model: s.model, ...m.reasoning_content ? { thinking: m.reasoning_content } : {} });
+        if (!m.tool_calls?.length) break;
+        for (const call of m.tool_calls) {
+          let args = {};
+          try {
+            args = JSON.parse(call.function?.arguments || "{}");
+          } catch {
+            args = {};
+          }
+          const result = ctl.signal.aborted ? "Stopped by the owner." : await this.runTool(id, s, String(call.function?.name ?? ""), args, ctl.signal);
+          s.messages.push({ role: "tool", tool_call_id: call.id, content: result });
+        }
+        if (ctl.signal.aborted) break;
+        if (step === MAX_STEPS - 1) this.put(id, { kind: "error", at: nowIso(), text: `${this.label} reached ${MAX_STEPS} steps; send a message to let it continue.` });
+      }
+    } catch (e) {
+      if (!ctl.signal.aborted) this.put(id, { kind: "error", at: nowIso(), text: e.message });
+    } finally {
+      this.running.delete(id);
+      this.book.denyAll(id);
+      if (s.messages.length > 200) {
+        let from = s.messages.length - 160;
+        while (from < s.messages.length && s.messages[from].role !== "user") from++;
+        s.messages = [s.messages[0], ...s.messages.slice(from)];
+      }
+      s.updatedAt = nowIso();
+      this.save();
+      this.emit("conversations");
+      this.emit("finished", { id });
+    }
+  }
+};
+
+// src/live/service.ts
+function primaryMacAddress() {
+  for (const list of Object.values((0, import_os3.networkInterfaces)())) {
+    for (const a of list ?? []) {
+      if (!a.internal && a.mac && a.mac !== "00:00:00:00:00:00") return a.mac.toUpperCase();
+    }
+  }
+  return null;
+}
+async function sendWakeOnLan(mac, broadcastIp = "255.255.255.255", port = 9) {
+  const pkt = formatWakeOnLanPacket(mac);
+  await new Promise((resolve3, reject) => {
+    const sock = (0, import_dgram.createSocket)("udp4");
+    sock.once("error", (err) => {
+      sock.close();
+      reject(err);
+    });
+    sock.bind(0, () => {
+      try {
+        sock.setBroadcast(true);
+      } catch {
+      }
+      sock.send(Buffer.from(pkt), port, broadcastIp, (err) => {
+        sock.close();
+        if (err) reject(err);
+        else resolve3();
+      });
+    });
+  });
+  return { ok: true, mac, bytes: pkt.byteLength };
+}
+var HOST_VERSION = "1.3.0";
+var INITIAL_WINDOW = 25;
+var HISTORY_PAGE = 120;
+var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
+var POLL_MS = 1500;
+var TRACKER_IDLE_MS = Number(process.env["AGENTDECK_TRACKER_IDLE_MS"] || 10 * 60 * 1e3);
+var RpcError = class extends Error {
+};
+var NOT_ROUTED = Symbol("not-routed");
+var CHEF_STAGES = [
+  {
+    label: "\u{1F4D6} Looking into your recipes & project structure\u2026",
+    bar: "\u25B0\u25B1\u25B1\u25B1\u25B1\u25B1",
+    encouragement: "Got your message! Great idea \u2014 firing up the kitchen right now."
+  },
+  {
+    label: "\u{1F9E0} Thinking & planning the best recipe for your app\u2026",
+    bar: "\u25B0\u25B0\u25B1\u25B1\u25B1\u25B1",
+    encouragement: "Reading through your architecture so everything fits cleanly."
+  },
+  {
+    label: "\u{1F50D} Finding the freshest ingredients across your files\u2026",
+    bar: "\u25B0\u25B0\u25B0\u25B1\u25B1\u25B1",
+    encouragement: "Scanning components, services & types for the exact spots."
+  },
+  {
+    label: "\u{1F9FA} Collecting ingredients, imports & context\u2026",
+    bar: "\u25B0\u25B0\u25B0\u25B0\u25B1\u25B1",
+    encouragement: "Gathering all the pieces onto the counter."
+  },
+  {
+    label: "\u{1F963} Mixing the ingredients & cooking up the code\u2026",
+    bar: "\u25B0\u25B0\u25B0\u25B0\u25B0\u25B1",
+    encouragement: "Blending your changes together and checking the flavor."
+  },
+  {
+    label: "\u{1F373} Simmering, taste-testing & plating up your answer\u2026",
+    bar: "\u25B0\u25B0\u25B0\u25B0\u25B0\u25B0",
+    encouragement: "Almost ready to serve \u2014 putting on the final garnish!"
+  }
+];
+var TYPING_DOTS = ["\u25CF \u25CB \u25CB", "\u25CF \u25CF \u25CB", "\u25CF \u25CF \u25CF", "\u25CB \u25CF \u25CF"];
+var CHEF_FRAMES = ["\u{1F468}\u200D\u{1F373} \u{1F958}", "\u{1F468}\u200D\u{1F373} \u{1F373}", "\u{1F468}\u200D\u{1F373} \u{1F963}", "\u{1F468}\u200D\u{1F373} \u{1F52A}", "\u{1F468}\u200D\u{1F373} \u{1F9C2}", "\u{1F468}\u200D\u{1F373} \u2728"];
+var NEW_PROJECT_SENTINEL = "__new_project__";
+function extractNewProjectName(text, explicitName) {
+  if (typeof explicitName === "string" && explicitName.trim()) {
+    const clean = explicitName.trim().replace(/[^a-zA-Z0-9._ -]/g, "").trim().replace(/\s+/g, "-");
+    if (clean) return clean.slice(0, 50);
+  }
+  const colonMatch = text.match(/^([a-zA-Z0-9][a-zA-Z0-9._-]{1,40})\s*:\s+/);
+  if (colonMatch?.[1]) return colonMatch[1];
+  const namedMatch = text.match(/\b(?:called|named)\s+["'`]?([a-zA-Z0-9][a-zA-Z0-9._-]{1,40})["'`]?/i);
+  if (namedMatch?.[1]) return namedMatch[1];
+  const stop = /* @__PURE__ */ new Set(["create", "build", "make", "start", "new", "project", "folder", "repo", "repository", "app", "application", "a", "an", "the", "for", "with", "using", "in", "to", "please", "i", "want", "need", "can", "you", "we"]);
+  const words = text.toLowerCase().replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter((w) => w.length > 1 && !stop.has(w)).slice(0, 4);
+  return words.length ? words.join("-").slice(0, 45) : `new-project-${Date.now().toString(36).slice(-4)}`;
+}
+function formatChefMarkdown(tick, elapsedSec) {
+  const dots = TYPING_DOTS[tick % TYPING_DOTS.length];
+  const chefIcon = CHEF_FRAMES[tick % CHEF_FRAMES.length];
+  const stageIdx = Math.floor(tick / 3) % CHEF_STAGES.length;
+  const current = CHEF_STAGES[stageIdx];
+  return `${chefIcon} ${current.label} ${dots} ${current.bar} (${elapsedSec}s)`;
+}
+function agentBadge(agent) {
+  switch (agent) {
+    case "codex":
+      return "\u{1F916} Codex";
+    case "claude":
+      return "\u{1F9E0} Claude";
+    case "acp":
+      return "\u{1F50C} ACP";
+    case "api":
+      return "\u{1F999} Local AI";
+    case "jules":
+      return "\u2601\uFE0F Jules";
+    default:
+      return "\u26A1 Antigravity";
+  }
+}
+function summaryToDto(id, s, pending) {
+  const ws = s.workspaces?.[0];
+  const path = ws?.workspaceFolderAbsoluteUri ? uriToPath(ws.workspaceFolderAbsoluteUri) : null;
+  return {
+    id,
+    agent: "antigravity",
+    title: s.summary || "Untitled conversation",
+    status: runStatus(s.status),
+    stepCount: s.stepCount ?? 0,
+    updatedAt: s.lastModifiedTime ?? "",
+    createdAt: s.createdTime ?? "",
+    workspacePath: path,
+    workspaceName: path ? basename(path) : null,
+    repo: ws?.repository?.computedName ?? null,
+    branch: ws?.branchName ?? null,
+    pendingApprovals: pending
+  };
+}
+var AgentDeckService = class extends import_events3.EventEmitter {
+  constructor(bridge, store, push, license = null) {
+    super();
+    this.bridge = bridge;
+    this.store = store;
+    this.push = push;
+    this.license = license;
+  }
+  summaries = /* @__PURE__ */ new Map();
+  list = [];
+  listKey = "";
+  trackers = /* @__PURE__ */ new Map();
+  timer = null;
+  inflight = null;
+  lastDiskLoad = 0;
+  loadedForPids = "";
+  modelCache = null;
+  /** Set by main.ts: tells phones and the dashboard when a newer Pulsar is out. */
+  updates = null;
+  /** Port the local HTTP server is listening on (used when installing Claude Code CLI hooks). */
+  hostPort = 8787;
+  /** Other agents on this computer (Codex, Claude, ACP agents); Antigravity stays built in. */
+  providers = [];
+  providerLists = /* @__PURE__ */ new Map();
+  /** Audit log and approval rules (Pulsar 3.0); optional so older embeddings keep working. */
+  governance = null;
+  sleepProc = null;
+  /** Enables live animated "Chef in the Kitchen" feedback and multi-agent folder badges in production. */
+  liveChefEnabled = process.env["NODE_ENV"] !== "test" && !process.execArgv.includes("--test");
+  chefTimers = /* @__PURE__ */ new Map();
+  pendingStarts = /* @__PURE__ */ new Map();
+  ensureChefTimer(id, initialChefIdx) {
+    const existing = this.chefTimers.get(id);
+    if (existing) return existing;
+    const state = {
+      chefIdx: initialChefIdx,
+      tick: 0,
+      startedAt: Date.now(),
+      settledCount: 0,
+      timer: setInterval(() => {
+        const elapsedMs = Date.now() - state.startedAt;
+        if (elapsedMs > 18e4) {
+          this.stopChefAnimation(id, true);
+          return;
+        }
+        state.tick++;
+        const tr = this.trackers.get(id);
+        const cur = tr?.items.get(state.chefIdx);
+        if (tr && (!cur || cur.kind === "tool" && cur.tool === "other" && cur.title.includes("\u{1F468}\u200D\u{1F373}"))) {
+          const updated = {
+            kind: "tool",
+            idx: state.chefIdx,
+            at: (/* @__PURE__ */ new Date()).toISOString(),
+            tool: "other",
+            status: "running",
+            title: formatChefMarkdown(state.tick, Math.floor(elapsedMs / 1e3))
+          };
+          tr.items.set(state.chefIdx, updated);
+          this.emit("items", { id, items: [updated] });
+        }
+      }, 750)
+    };
+    state.timer.unref?.();
+    this.chefTimers.set(id, state);
+    return state;
+  }
+  startChefAnimation(id, text, imageCount = 0) {
+    this.stopChefAnimation(id, false);
+    const s = this.summaries.get(id);
+    if (s) {
+      s.status = "CASCADE_RUN_STATUS_RUNNING";
+      this.publishList(true);
+    }
+    let t = this.trackers.get(id);
+    const baseCount = Math.max(t?.stepCount ?? 0, s?.stepCount ?? 0);
+    if (!t) t = this.createTracker(id, Math.max(0, baseCount - INITIAL_WINDOW));
+    const userIdx = baseCount;
+    const chefIdx = baseCount + 1;
+    const at = (/* @__PURE__ */ new Date()).toISOString();
+    const userItem = { kind: "user", idx: userIdx, at, text, images: imageCount };
+    const chefItem = {
+      kind: "tool",
+      idx: chefIdx,
+      at,
+      tool: "other",
+      status: "running",
+      title: formatChefMarkdown(0, 0)
+    };
+    t.items.set(userIdx, userItem);
+    this.ensureChefTimer(id, chefIdx);
+    this.emit("items", { id, items: [userItem] });
+    const delayed = setTimeout(() => {
+      const tr = this.trackers.get(id);
+      if (tr && this.chefTimers.has(id)) {
+        tr.items.set(chefIdx, chefItem);
+        this.emit("items", { id, items: [chefItem] });
+      }
+    }, 420);
+    delayed.unref?.();
+  }
+  stopChefAnimation(id, markDone = true) {
+    const state = this.chefTimers.get(id);
+    if (!state) return;
+    clearInterval(state.timer);
+    this.chefTimers.delete(id);
+    if (markDone) {
+      const tr = this.trackers.get(id);
+      const existing = tr?.items.get(state.chefIdx);
+      if (tr && existing && existing.kind === "tool" && existing.title.includes("\u{1F468}\u200D\u{1F373}")) {
+        const doneItem = {
+          kind: "tool",
+          idx: state.chefIdx,
+          at: (/* @__PURE__ */ new Date()).toISOString(),
+          tool: "other",
+          status: "done",
+          title: "\u{1F468}\u200D\u{1F373} Recipes checked \xB7 Ingredients mixed & served \u2728"
+        };
+        tr.items.set(state.chefIdx, doneItem);
+        this.emit("items", { id, items: [doneItem] });
+      }
+    }
+  }
+  /** Ensures a ClaudeProvider is registered and forwards a Claude Code CLI hook payload to it. */
+  async handleClaudeHook(payload) {
+    let claude = this.providers.find((p) => p instanceof ClaudeProvider);
+    if (!claude) {
+      claude = new ClaudeProvider(this.store.dir);
+      this.addProvider(claude);
+    }
+    return claude.handleHookEvent(payload ?? {});
+  }
+  /** Starts or stops the OS sleep inhibitor (`caffeinate` on macOS) and saves the preference. */
+  setPreventSleep(enabled) {
+    const next = !!enabled;
+    this.store.saveConfig({ preventSleep: next });
+    if (!next) {
+      if (this.sleepProc) {
+        try {
+          this.sleepProc.kill();
+        } catch {
+        }
+        this.sleepProc = null;
+      }
+      return false;
+    }
+    if (!this.sleepProc && process.env["NODE_ENV"] !== "test") {
+      try {
+        if (process.platform === "darwin") {
+          this.sleepProc = (0, import_child_process4.spawn)("caffeinate", ["-di"], { stdio: "ignore" });
+        } else if (process.platform === "linux") {
+          this.sleepProc = (0, import_child_process4.spawn)("systemd-inhibit", ["--what=idle:sleep", "sleep", "infinity"], { stdio: "ignore" });
+        }
+        this.sleepProc?.on("error", () => {
+          this.sleepProc = null;
+        });
+        this.sleepProc?.unref();
+      } catch {
+        this.sleepProc = null;
+      }
+    }
+    return true;
+  }
+  /** Adds an installed agent; its conversations join the list and its approvals push like Antigravity's. */
+  addProvider(p) {
+    this.providers.push(p);
+    const refresh = () => p.conversations().then((l) => {
+      this.providerLists.set(p.id, l);
+      this.publishList(true);
+    }).catch(() => void 0);
+    p.on("conversations", refresh);
+    p.on("items", (payload) => this.emit("items", payload));
+    p.on("approval", ({ id, idx }) => {
+      const item = p.approvalItem(id, idx);
+      const req = this.governance?.required(item?.detail);
+      if (req && req.approvals === 0) {
+        this.governance?.log({ action: "approve", agent: p.label, conversationId: id, deviceName: "Auto-approve (safe)", detail: item?.detail });
+        void p.respondApproval(id, idx, true).catch(() => void 0);
+        return;
+      }
+      this.governance?.log({ action: "approval-requested", agent: p.label, conversationId: id, detail: item?.detail });
+      void this.notify("Approval needed", "The agent is waiting for you. Approve or deny from here, or open Pulsar to review.", id, { categoryId: "approval", approvalIdx: String(idx) });
+    });
+    p.on("finished", ({ id }) => void this.notify("Agent finished", "Your task is done. Open Pulsar to see the result.", id));
+    void refresh();
+  }
+  /** Removes an agent (e.g. its API key was removed); its conversations leave the list. */
+  removeProvider(providerId) {
+    const p = this.providers.find((x) => x.id === providerId);
+    if (!p) return;
+    p.stop();
+    p.removeAllListeners();
+    this.providers = this.providers.filter((x) => x !== p);
+    this.providerLists.delete(providerId);
+    this.publishList(true);
+  }
+  /** Model API agents (DeepSeek, Qwen, Kimi, OpenRouter, Ollama…): adds, replaces or removes them to match models.json. */
+  async syncModelApis() {
+    const list = loadModelApis(this.store.dir);
+    for (const p of this.providers.filter((x) => x.id.startsWith("api:"))) this.removeProvider(p.id);
+    const configured = new Set(list.map((c) => c.id));
+    const local = MODEL_API_PRESETS.find((x) => x.id === "ollama");
+    const all = [...list, ...configured.has("ollama") ? [] : [{ id: local.id, label: local.label, baseUrl: local.baseUrl, model: local.model }]];
+    for (const c of all) {
+      const prov = new ModelApiProvider(c, this.store.dir);
+      if (await prov.available().catch(() => false)) this.addProvider(prov);
+    }
+  }
+  providerFor(id) {
+    return typeof id === "string" ? this.providers.find((p) => id.startsWith(p.prefix)) : void 0;
+  }
+  agents() {
+    return [{ agent: "antigravity", id: "antigravity", label: "Antigravity" }, ...this.providers.map((p) => ({ agent: p.kind, id: p.id, label: p.label }))];
+  }
+  start() {
+    if (this.timer) return;
+    const tick = async () => {
+      await this.poll().catch(() => void 0);
+      this.timer = setTimeout(tick, POLL_MS);
+    };
+    void tick();
+  }
+  stop() {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    for (const id of [...this.chefTimers.keys()]) this.stopChefAnimation(id, false);
+    if (this.sleepProc) {
+      try {
+        this.sleepProc.kill();
+      } catch {
+      }
+      this.sleepProc = null;
+    }
+    for (const p of this.providers) p.stop();
+  }
+  // ---------- polling ----------
+  /** Concurrent callers share one in-flight poll. */
+  poll() {
+    if (!this.inflight) this.inflight = this.doPoll().finally(() => this.inflight = null);
+    return this.inflight;
+  }
+  async doPoll() {
+    {
+      const pids = (await this.bridge.ensureServers()).map((s) => s.pid).join(",");
+      if (pids && (pids !== this.loadedForPids || Date.now() - this.lastDiskLoad > 10 * 6e4)) {
+        this.loadedForPids = pids;
+        this.lastDiskLoad = Date.now();
+        void this.bridge.loadRecentFromDisk().then((n) => n ? this.poll() : void 0).catch(() => 0);
+      }
+      const prev = this.summaries;
+      this.summaries = await this.bridge.listConversations();
+      for (const [pid, entry] of this.pendingStarts) {
+        if (this.summaries.has(pid) || Date.now() > entry.expiresAt) {
+          this.pendingStarts.delete(pid);
+        } else {
+          this.summaries.set(pid, entry.summary);
+        }
+      }
+      for (const [id, s] of this.summaries) {
+        const before = prev.get(id);
+        const status2 = runStatus(s.status);
+        const tracker = this.trackers.get(id);
+        if (status2 === "running" || status2 === "busy" || before && runStatus(before.status) !== "idle" || tracker && (tracker.subscribers > 0 || tracker.unsettledFrom < (s.stepCount ?? 0))) {
+          const t = tracker ?? this.createTracker(id, Math.max(0, (s.stepCount ?? 0) - 30));
+          if ((s.stepCount ?? 0) !== t.stepCount || status2 !== "idle" || t.unsettledFrom < t.stepCount) {
+            await this.refreshTracker(t).catch(() => void 0);
+          }
+        }
+        if (before && runStatus(before.status) === "running" && status2 === "idle") {
+          this.stopChefAnimation(id, true);
+          void this.notify("Agent finished", "Your task is done. Open Pulsar to see the result.", id);
+        } else if (status2 === "idle" && this.chefTimers.has(id)) {
+          const st = this.chefTimers.get(id);
+          if (Date.now() - st.startedAt > 4e3) this.stopChefAnimation(id, true);
+        }
+      }
+      this.evictIdleTrackers();
+      this.publishList();
+    }
+  }
+  evictIdleTrackers() {
+    const now = Date.now();
+    for (const [id, t] of this.trackers) {
+      const status2 = runStatus(this.summaries.get(id)?.status);
+      if (t.subscribers > 0 || status2 === "running" || status2 === "busy") t.lastActive = now;
+      else if (now - t.lastActive > TRACKER_IDLE_MS || !this.summaries.has(id)) this.trackers.delete(id);
+    }
+  }
+  createTracker(id, from) {
+    const t = {
+      id,
+      unsettledFrom: from,
+      stepCount: from,
+      items: /* @__PURE__ */ new Map(),
+      raw: /* @__PURE__ */ new Map(),
+      firstLoaded: from,
+      subscribers: 0,
+      notifiedApprovals: /* @__PURE__ */ new Set(),
+      lastActive: Date.now()
+    };
+    this.trackers.set(id, t);
+    return t;
+  }
+  async refreshTracker(t) {
+    const steps = await this.bridge.getSteps(t.id, t.unsettledFrom).catch((err) => {
+      if (this.pendingStarts.has(t.id)) return [];
+      throw err;
+    });
+    const changed = [];
+    let newUnsettled = -1;
+    let firstEmptyPlannerIdx = -1;
+    steps.forEach((step, i) => {
+      const idx = t.unsettledFrom + i;
+      t.raw.set(idx, step);
+      const item = stepToItem(step, idx);
+      if (step.type === "CORTEX_STEP_TYPE_PLANNER_RESPONSE" && !item && firstEmptyPlannerIdx < 0) {
+        firstEmptyPlannerIdx = idx;
+      }
+      const prev = t.items.get(idx);
+      if (item && JSON.stringify(item) !== JSON.stringify(prev)) {
+        t.items.set(idx, item);
+        changed.push(item);
+      } else if (!item && prev && !(prev.kind === "agent" && prev.text.includes("\u{1F468}\u200D\u{1F373}")) && !(prev.kind === "tool" && prev.tool === "other" && prev.title.startsWith("\u{1F468}\u200D\u{1F373}"))) {
+        t.items.delete(idx);
+      }
+      if (!isSettled(step) && newUnsettled < 0) newUnsettled = idx;
+      if (item?.kind === "approval" && !t.notifiedApprovals.has(idx)) {
+        t.notifiedApprovals.add(idx);
+        const req = this.governance?.required(item.detail);
+        if (req && req.approvals === 0) {
+          this.governance?.log({ action: "approve", agent: "Antigravity", conversationId: t.id, deviceName: "Auto-approve (safe)", detail: item.detail });
+          void this.respondApproval({ id: t.id, idx, allow: true }).catch(() => void 0);
+        } else {
+          void this.notify("Approval needed", "The agent is waiting for you. Approve or deny from here, or open Pulsar to review.", t.id, { categoryId: "approval", approvalIdx: String(idx) });
+        }
+      }
+    });
+    for (const [idx, step] of t.raw) if (isSettled(step)) t.raw.delete(idx);
+    t.stepCount = t.unsettledFrom + steps.length;
+    t.unsettledFrom = newUnsettled >= 0 ? newUnsettled : t.stepCount;
+    if (this.liveChefEnabled) {
+      let lastUserIdx = -1;
+      for (const [idx, it] of t.items) {
+        if (it.kind === "user" && idx > lastUserIdx) lastUserIdx = idx;
+      }
+      const hasRealReply = [...t.items.values()].some(
+        (it) => it.idx > lastUserIdx && it.kind === "agent" && !it.text.includes("\u{1F468}\u200D\u{1F373}")
+      );
+      const sumStatus = runStatus(this.summaries.get(t.id)?.status);
+      const existingChef = this.chefTimers.get(t.id);
+      const isRunning = !hasRealReply && (sumStatus === "running" || sumStatus === "busy" || newUnsettled >= 0 || existingChef !== void 0 && Date.now() - existingChef.startedAt < 5e3);
+      if (isRunning) {
+        let lastNonChefIdx = lastUserIdx;
+        for (const [idx, it] of t.items) {
+          const isChef = it.kind === "tool" && it.tool === "other" && it.title.includes("\u{1F468}\u200D\u{1F373}");
+          if (!isChef && idx > lastNonChefIdx) lastNonChefIdx = idx;
+        }
+        const defaultIdx = firstEmptyPlannerIdx > lastNonChefIdx ? firstEmptyPlannerIdx : Math.max(t.stepCount, lastNonChefIdx + 1, 1);
+        const state = this.ensureChefTimer(t.id, defaultIdx);
+        if (defaultIdx > state.chefIdx) {
+          const prevAtOld = t.items.get(state.chefIdx);
+          if (prevAtOld && prevAtOld.kind === "tool" && prevAtOld.title.includes("\u{1F468}\u200D\u{1F373}")) {
+            t.items.delete(state.chefIdx);
+          }
+          state.chefIdx = defaultIdx;
+        }
+        const cur = t.items.get(state.chefIdx);
+        if (!cur || cur.kind === "tool" && cur.title.includes("\u{1F468}\u200D\u{1F373}")) {
+          const elapsedSec = Math.floor((Date.now() - state.startedAt) / 1e3);
+          const chefCard = {
+            kind: "tool",
+            idx: state.chefIdx,
+            at: (/* @__PURE__ */ new Date()).toISOString(),
+            tool: "other",
+            status: "running",
+            title: formatChefMarkdown(state.tick, elapsedSec)
+          };
+          t.items.set(state.chefIdx, chefCard);
+          changed.push(chefCard);
+        }
+      } else if (hasRealReply) {
+        this.stopChefAnimation(t.id, true);
+      }
+    }
+    if (changed.length) this.emit("items", { id: t.id, items: changed });
+    return changed;
+  }
+  pendingFor(id) {
+    const t = this.trackers.get(id);
+    if (!t) return 0;
+    let n = 0;
+    for (const item of t.items.values()) if (item.kind === "approval" && !item.resolved) n++;
+    return n;
+  }
+  publishList(force = false) {
+    if (!force || !this.list.length) {
+      this.list = [...this.summaries.entries()].map(([id, s]) => summaryToDto(id, s, this.pendingFor(id)));
+    }
+    const ag = this.list.filter((c) => !this.providerFor(c.id));
+    const merged = [...ag, ...[...this.providerLists.values()].flat()].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    this.list = this.liveChefEnabled && this.providers.length > 0 ? merged.map((c) => {
+      const badge = agentBadge(c.agent);
+      const base = c.workspaceName?.replace(/^(⚡ Antigravity|🤖 Codex|🧠 Claude|🔌 ACP|🦙 Local AI|☁️ Jules) · /, "") ?? null;
+      return {
+        ...c,
+        workspaceName: base ? `${badge} \xB7 ${base}` : badge
+      };
+    }) : merged;
+    const key = JSON.stringify(this.list.map((c) => [c.id, c.status, c.stepCount, c.title, c.pendingApprovals, c.workspaceName]));
+    if (key !== this.listKey) {
+      this.listKey = key;
+      this.emit("conversations", this.list);
+    }
+  }
+  async notify(title, body, conversationId, opts = {}) {
+    const tokens = this.store.listDevices().map((d) => d.pushToken).filter((t) => !!t && isExpoPushToken(t));
+    if (!tokens.length) return;
+    const data = { conversationId };
+    if (opts.approvalIdx) data["approvalIdx"] = opts.approvalIdx;
+    await this.push(tokens.map((to) => ({ to, title, body, data, ...opts.categoryId ? { categoryId: opts.categoryId } : {} })));
+  }
+  // ---------- RPC surface ----------
+  async hostInfo() {
+    await this.bridge.ensureServers();
+    return {
+      hostId: this.store.config.hostId,
+      hostName: this.store.config.hostName,
+      version: HOST_VERSION,
+      antigravity: {
+        connected: this.bridge.serverCount > 0,
+        servers: this.bridge.serverCount,
+        error: this.bridge.lastError ?? void 0
+      },
+      platform: process.platform,
+      preventSleep: !!this.store.config.preventSleep,
+      macAddress: primaryMacAddress(),
+      claudeHooksInstalled: isClaudeHooksInstalled(),
+      license: this.license ? (({ required, active, status: status2, renewsAt, message }) => ({ required, active, status: status2, renewsAt, message }))(this.license.state()) : void 0,
+      update: this.updates?.info()
+    };
+  }
+  async conversations() {
+    if (!this.summaries.size) await this.poll().catch(() => void 0);
+    if (!this.summaries.size && !this.list.length) this.publishList(true);
+    return this.list;
+  }
+  defaultProjectsRoot(convs) {
+    const counts = /* @__PURE__ */ new Map();
+    for (const c of convs) {
+      if (!c.workspacePath) continue;
+      const parent = (0, import_path5.dirname)(c.workspacePath);
+      if (parent && parent !== "/" && (0, import_fs5.existsSync)(parent)) {
+        counts.set(parent, (counts.get(parent) ?? 0) + 1);
+      }
+    }
+    let best = "";
+    let bestCount = 0;
+    for (const [dir, n] of counts) {
+      if (n > bestCount) {
+        best = dir;
+        bestCount = n;
+      }
+    }
+    if (best) return best;
+    const home = (0, import_os3.homedir)();
+    for (const candidate of [(0, import_path5.join)(home, "Documents", "GitHub"), (0, import_path5.join)(home, "GitHub"), (0, import_path5.join)(home, "Projects"), (0, import_path5.join)(home, "Developer")]) {
+      if ((0, import_fs5.existsSync)(candidate)) return candidate;
+    }
+    return home;
+  }
+  async workspaces() {
+    const convs = await this.conversations();
+    const map = /* @__PURE__ */ new Map();
+    for (const c of convs) {
+      if (!c.workspacePath) continue;
+      const w = map.get(c.workspacePath);
+      if (w) {
+        w.conversationCount++;
+        if (c.updatedAt > w.lastActive) w.lastActive = c.updatedAt;
+      } else {
+        const cleanName = c.workspacePath ? basename(c.workspacePath) : c.workspaceName ?? c.workspacePath;
+        map.set(c.workspacePath, {
+          path: c.workspacePath,
+          name: cleanName,
+          repo: c.repo,
+          branch: c.branch,
+          conversationCount: 1,
+          lastActive: c.updatedAt
+        });
+      }
+    }
+    if (this.liveChefEnabled) {
+      const rootDir = this.defaultProjectsRoot(convs);
+      try {
+        const entries = (0, import_fs5.readdirSync)(rootDir, { withFileTypes: true });
+        for (const e of entries.slice(0, 30)) {
+          if (!e.isDirectory() || e.name.startsWith(".")) continue;
+          const full = (0, import_path5.join)(rootDir, e.name);
+          if (!map.has(full)) {
+            let mtime = "1970-01-01T00:00:00.000Z";
+            try {
+              mtime = (0, import_fs5.statSync)(full).mtime.toISOString();
+            } catch {
+            }
+            map.set(full, {
+              path: full,
+              name: e.name,
+              repo: full,
+              branch: null,
+              conversationCount: 0,
+              lastActive: mtime
+            });
+          }
+        }
+      } catch {
+      }
+      const sorted = [...map.values()].sort((a, b) => b.lastActive.localeCompare(a.lastActive));
+      return [
+        {
+          path: NEW_PROJECT_SENTINEL,
+          name: "\u2728 + Start a Brand-New Project",
+          repo: `Creates a new folder in ${basename(rootDir)} (e.g. "my-app: build a landing page")`,
+          branch: "new folder",
+          conversationCount: 0,
+          lastActive: (/* @__PURE__ */ new Date()).toISOString()
+        },
+        ...sorted
+      ];
+    }
+    return [...map.values()].sort((a, b) => b.lastActive.localeCompare(a.lastActive));
+  }
+  async resolveOrCreateWorkspace(pathArg, text, explicitName) {
+    const wantsNew = pathArg === NEW_PROJECT_SENTINEL || typeof explicitName === "string" && explicitName.trim().length > 0;
+    if (wantsNew) {
+      const convs = await this.conversations();
+      const rootDir = this.defaultProjectsRoot(convs);
+      const folderName = extractNewProjectName(text, explicitName);
+      const newPath = (0, import_path5.join)(rootDir, folderName);
+      (0, import_fs5.mkdirSync)(newPath, { recursive: true });
+      if (!(0, import_fs5.existsSync)((0, import_path5.join)(newPath, ".git"))) {
+        try {
+          (0, import_child_process4.spawnSync)("git", ["init"], { cwd: newPath, stdio: "ignore" });
+        } catch {
+        }
+      }
+      return newPath;
+    }
+    return this.requireWorkspace(pathArg);
+  }
+  async requireWorkspace(path) {
+    if (typeof path !== "string" || !path) throw new RpcError("workspacePath is required");
+    const known = (await this.workspaces()).some((w) => w.path === path);
+    if (!known) throw new RpcError("Unknown workspace");
+    if (!(0, import_fs5.existsSync)(path)) throw new RpcError("Workspace folder no longer exists");
+    return path;
+  }
+  /** Refreshes from Antigravity once when an id isn't known yet (just started, or the host only just came up). */
+  async knowConversation(id) {
+    if (typeof id === "string" && !this.summaries.has(id) && !this.providerFor(id)) await this.poll().catch(() => void 0);
+  }
+  requireConversation(id) {
+    if (typeof id !== "string" || !this.summaries.has(id)) throw new RpcError("Unknown conversation");
+    return id;
+  }
+  async open(idArg, newSubscriber = true) {
+    await this.knowConversation(idArg);
+    if (!this.summaries.size) await this.poll();
+    const id = this.requireConversation(idArg);
+    const count = this.summaries.get(id)?.stepCount ?? 0;
+    let t = this.trackers.get(id);
+    if (!t || t.firstLoaded > Math.max(0, count - INITIAL_WINDOW)) {
+      const subscribers = t?.subscribers ?? 0;
+      t = this.createTracker(id, Math.max(0, count - INITIAL_WINDOW));
+      t.subscribers = subscribers;
+    }
+    if (newSubscriber) t.subscribers++;
+    await this.refreshTracker(t);
+    const allItems = [...t.items.values()].sort((a, b) => a.idx - b.idx);
+    let windowStart = Math.max(t.firstLoaded, t.stepCount - INITIAL_WINDOW);
+    let items = allItems.filter((i) => i.idx >= windowStart);
+    if (!items.length && allItems.length) {
+      items = allItems.slice(-12);
+      windowStart = items[0].idx;
+    }
+    return { items, firstIdx: windowStart, hasMore: windowStart > 0, conversation: this.list.find((c) => c.id === id) ?? null };
+  }
+  close(idArg) {
+    const t = typeof idArg === "string" ? this.trackers.get(idArg) : void 0;
+    if (t && t.subscribers > 0) t.subscribers--;
+  }
+  historyInflight = /* @__PURE__ */ new Map();
+  async history(idArg, before) {
+    const id = this.requireConversation(idArg);
+    const end = typeof before === "number" ? Math.max(0, Math.floor(before)) : 0;
+    const total = this.summaries.get(id)?.stepCount ?? end;
+    const floor = Math.max(0, total - MAX_HISTORY_DEPTH);
+    const start2 = Math.max(floor, end - HISTORY_PAGE);
+    if (end <= floor) return { items: [], firstIdx: end, hasMore: false, olderOnMac: floor > 0 };
+    const t = this.trackers.get(id);
+    const inRange = (i) => i.idx >= start2 && i.idx < end;
+    const done = (items) => ({ items: items.filter(inRange).sort((x, y) => x.idx - y.idx), firstIdx: start2, hasMore: start2 > floor, olderOnMac: start2 <= floor && floor > 0 });
+    if (t && t.firstLoaded <= start2) {
+      t.lastActive = Date.now();
+      return done([...t.items.values()]);
+    }
+    const k = `${id}:${start2}`;
+    let pending = this.historyInflight.get(k);
+    if (!pending) {
+      pending = (async () => {
+        const steps = await this.bridge.getSteps(id, start2);
+        const items = [];
+        steps.slice(0, end - start2).forEach((st, i) => {
+          const item = stepToItem(st, start2 + i);
+          if (item) items.push(item);
+        });
+        const tr = this.trackers.get(id);
+        if (tr) {
+          for (const item of items) if (!tr.items.has(item.idx)) tr.items.set(item.idx, item);
+          tr.firstLoaded = Math.min(tr.firstLoaded, start2);
+        }
+        return items;
+      })().finally(() => this.historyInflight.delete(k));
+      this.historyInflight.set(k, pending);
+    }
+    return done(await pending);
+  }
+  async models() {
+    if (this.modelCache && Date.now() - this.modelCache.at < 5 * 6e4) return this.modelCache.value;
+    const { models, defaultModel } = await this.bridge.listModels();
+    const value = { models: models.map((m) => ({ id: m.model, label: m.label })), defaultModel };
+    this.modelCache = { at: Date.now(), value };
+    return value;
+  }
+  async resolveModel(model) {
+    const { models, defaultModel } = await this.models();
+    if (typeof model === "string" && models.some((m) => m.id === model)) return model;
+    if (!defaultModel) throw new RpcError("No Antigravity model is available");
+    return defaultModel;
+  }
+  parseImages(images) {
+    if (!Array.isArray(images)) return [];
+    return images.slice(0, 6).flatMap((img) => {
+      const mime = String(img?.mimeType ?? "image/jpeg");
+      const data = String(img?.base64 ?? "");
+      if (!/^image\/(png|jpe?g|gif|webp|heic)$/.test(mime) || !data) return [];
+      if (data.length > 14 * 1024 * 1024) throw new RpcError("Image is too large (max ~10 MB)");
+      return [{ base64Data: data, mimeType: mime }];
+    });
+  }
+  async send(params) {
+    const id = this.requireConversation(params?.id);
+    const text = String(params?.text ?? "").trim();
+    const images = this.parseImages(params?.images);
+    if (!text && !images.length) throw new RpcError("Message is empty");
+    if (this.liveChefEnabled) this.startChefAnimation(id, text, images.length);
+    await this.bridge.sendMessage(id, text, { model: await this.resolveModel(params?.model), images });
+    void this.poll();
+    setTimeout(() => void this.poll(), 400);
+    setTimeout(() => void this.poll(), 1200);
+    return { ok: true };
+  }
+  async startConversation(params) {
+    const text = String(params?.text ?? "").trim();
+    const images = this.parseImages(params?.images);
+    if (!text) throw new RpcError("Describe the task to start a conversation");
+    const path = await this.resolveOrCreateWorkspace(params?.workspacePath, text, params?.newProjectName);
+    const model = await this.resolveModel(params?.model);
+    const workspaceUri = (0, import_url.pathToFileURL)(path).href;
+    const id = await this.bridge.startConversation(workspaceUri);
+    await this.bridge.sendMessage(id, text, { model, images });
+    await this.poll();
+    if (!this.summaries.has(id)) {
+      const now = (/* @__PURE__ */ new Date()).toISOString();
+      const initialSummary = {
+        summary: text.slice(0, 80) || basename(path),
+        status: "CASCADE_RUN_STATUS_RUNNING",
+        stepCount: 0,
+        createdTime: now,
+        lastModifiedTime: now,
+        workspaces: [{ workspaceFolderAbsoluteUri: workspaceUri }]
+      };
+      this.pendingStarts.set(id, { summary: initialSummary, expiresAt: Date.now() + 3e4 });
+      this.summaries.set(id, initialSummary);
+      this.publishList(true);
+    }
+    if (this.liveChefEnabled) this.startChefAnimation(id, text, images.length);
+    return { id };
+  }
+  async cancel(idArg) {
+    const id = this.requireConversation(idArg);
+    this.stopChefAnimation(id, true);
+    await this.bridge.cancel(id);
+    void this.poll();
+    return { ok: true };
+  }
+  async respondApproval(params) {
+    const id = this.requireConversation(params?.id);
+    const idx = Number(params?.idx);
+    const t = this.trackers.get(id);
+    let step = t?.raw.get(idx);
+    if (!step) {
+      const [fresh] = await this.bridge.getSteps(id, idx);
+      step = fresh;
+    }
+    if (!step || stepState(step.status) !== "waiting") throw new RpcError("This approval is no longer pending");
+    const info = step.metadata?.sourceTrajectoryStepInfo ?? {};
+    const interaction = buildInteraction(step, info.trajectoryId ?? "", Number(info.stepIndex ?? idx), params?.allow === true);
+    await this.bridge.interact(id, interaction);
+    if (t) {
+      const item = t.items.get(idx);
+      if (item?.kind === "approval") {
+        const resolved = { ...item, resolved: true };
+        t.items.set(idx, resolved);
+        this.emit("items", { id, items: [resolved] });
+      }
+      t.unsettledFrom = Math.min(t.unsettledFrom, idx);
+    }
+    void this.poll();
+    return { ok: true };
+  }
+  async changes(params) {
+    const path = await this.requireWorkspace(params?.workspacePath);
+    const [files, branch] = await Promise.all([changedFiles(path), currentBranch(path)]);
+    return { files, branch };
+  }
+  async diff(params) {
+    const path = await this.requireWorkspace(params?.workspacePath);
+    if (typeof params?.path !== "string") throw new RpcError("path is required");
+    return fileDiff(path, params.path);
+  }
+  async commit(deviceId, params) {
+    const path = await this.requireWorkspace(params?.workspacePath);
+    const message = String(params?.message ?? "").trim();
+    if (!message) throw new RpcError("Commit message is required");
+    const res = await commitChanges(path, message);
+    this.governance?.log({ action: "approve", agent: "Git", conversationId: path, deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `git commit: ${message}` });
+    return res;
+  }
+  async pushRepo(deviceId, params) {
+    const path = await this.requireWorkspace(params?.workspacePath);
+    const res = await pushChanges(path);
+    this.governance?.log({ action: "approve", agent: "Git", conversationId: path, deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `git push (${res.branch ?? "HEAD"})` });
+    return res;
+  }
+  async revert(deviceId, params) {
+    const path = await this.requireWorkspace(params?.workspacePath);
+    if (typeof params?.path !== "string" || !params.path.trim()) throw new RpcError("path is required");
+    const res = await revertFile(path, params.path);
+    this.governance?.log({ action: "approve", agent: "Git", conversationId: path, deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `git revert: ${params.path}` });
+    return res;
+  }
+  async stash(deviceId, params) {
+    const path = await this.requireWorkspace(params?.workspacePath);
+    const pop = params?.pop === true;
+    const res = await stashChanges(path, pop);
+    this.governance?.log({ action: "approve", agent: "Git", conversationId: path, deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: pop ? "git stash pop" : "git stash" });
+    return { ok: true, summary: res.output };
+  }
+  async revertDiffHunk(deviceId, params) {
+    const path = await this.requireWorkspace(params?.workspacePath);
+    if (typeof params?.path !== "string" || !params.path.trim()) throw new RpcError("path is required");
+    if (typeof params?.hunk !== "string" || !params.hunk.trim()) throw new RpcError("hunk is required");
+    const res = await revertHunk(path, params.path, params.hunk);
+    this.governance?.log({ action: "approve", agent: "Git", conversationId: path, deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `git revert hunk: ${params.path}` });
+    return res;
+  }
+  async createPr(deviceId, params) {
+    const path = await this.requireWorkspace(params?.workspacePath);
+    const res = await createPullRequestUrl(path);
+    this.governance?.log({ action: "approve", agent: "Git", conversationId: path, deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `create PR (${res.branch ?? "HEAD"})` });
+    return { url: res.url, branch: res.branch ?? "HEAD" };
+  }
+  /** Probes common local dev ports on 127.0.0.1 and fetches the requested preview page over the encrypted tunnel. */
+  async preview(params) {
+    const COMMON_PORTS = [3e3, 5173, 8080, 4200, 8e3, 4321];
+    const probePort = (port) => new Promise((resolve3) => {
+      const sock = (0, import_net.createConnection)({ host: "127.0.0.1", port });
+      const done = (ok) => {
+        sock.destroy();
+        resolve3(ok);
+      };
+      sock.setTimeout(200, () => done(false));
+      sock.once("connect", () => done(true));
+      sock.once("error", () => done(false));
+    });
+    const activeFlags = await Promise.all(COMMON_PORTS.map(probePort));
+    const activePorts = COMMON_PORTS.filter((_, i) => activeFlags[i]);
+    const requestedPort = Number(params?.port) || activePorts[0] || 3e3;
+    if (!Number.isInteger(requestedPort) || requestedPort < 1024 || requestedPort > 65535) {
+      throw new RpcError("Preview port must be between 1024 and 65535");
+    }
+    const rawPath = String(params?.path ?? "/").trim() || "/";
+    const cleanPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+    const parsed = new URL(cleanPath, `http://127.0.0.1:${requestedPort}`);
+    if (parsed.hostname !== "127.0.0.1" || Number(parsed.port) !== requestedPort) {
+      throw new RpcError("Invalid preview path");
+    }
+    const url = parsed.href;
+    const MAX_PREVIEW = 180 * 1024;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 5e3);
+      const res = await fetch(url, { signal: ctrl.signal, redirect: "manual" }).finally(() => clearTimeout(timer));
+      const contentType = res.headers.get("content-type") ?? "text/plain";
+      const text = await res.text();
+      const truncated = text.length > MAX_PREVIEW;
+      return {
+        port: requestedPort,
+        path: cleanPath,
+        url,
+        status: res.status,
+        contentType,
+        body: truncated ? text.slice(0, MAX_PREVIEW) : text,
+        truncated,
+        activePorts: activePorts.includes(requestedPort) ? activePorts : [requestedPort, ...activePorts]
+      };
+    } catch (e) {
+      throw new RpcError(`No dev server answered on localhost:${requestedPort} (${e.message || "connection refused"})`);
+    }
+  }
+  /** The approval card (for rules and the audit log), from Antigravity or a provider. */
+  approvalCard(id, idx) {
+    const prov = this.providerFor(id);
+    if (prov) return prov.approvalItem(id, idx);
+    const item = this.trackers.get(id)?.items.get(idx);
+    return item?.kind === "approval" ? item : null;
+  }
+  /**
+   * Approve/deny with approval rules: a matching rule can require approvals from several different
+   * phones; until then the card shows "1 of 2 approvals". Any phone can deny.
+   */
+  async governedApproval(deviceId, p) {
+    const id = String(p?.id ?? "");
+    const idx = Number(p?.idx);
+    const allow = p?.allow === true;
+    const card = this.approvalCard(id, idx);
+    const prov = this.providerFor(id);
+    const agent = prov?.label ?? "Antigravity";
+    const deviceName = this.store.getDevice(deviceId)?.name;
+    const key = `${id}#${idx}`;
+    if (allow && this.governance) {
+      const { approvals, rule } = this.governance.required(card?.detail);
+      if (approvals > 1) {
+        const v = this.governance.vote(key, deviceId, approvals);
+        if (!v.ready) {
+          this.governance.log({ action: "approve", agent, conversationId: id, deviceId, deviceName, detail: card?.detail, progress: v.progress });
+          if (card) this.emit("items", { id, items: [{ ...card, progress: `${v.progress}${rule?.label ? ` \xB7 ${rule.label}` : ""}` }] });
+          return { ok: true, waiting: v.progress };
+        }
+      }
+    }
+    this.governance?.clearVotes(key);
+    if (prov) await prov.respondApproval(id, idx, allow);
+    else await this.respondApproval({ id, idx, allow });
+    this.governance?.log({ action: allow ? "approve" : "deny", agent, conversationId: id, deviceId, deviceName, detail: card?.detail });
+    return { ok: true };
+  }
+  /** Requests for Codex / Claude / ACP conversations, or starting one with those agents. */
+  async dispatchProvider(deviceId, method, p) {
+    const deviceName = this.store.getDevice(deviceId)?.name;
+    if (method === "conversation.start" && typeof p?.agent === "string" && p.agent !== "antigravity") {
+      const prov2 = this.providers.find((x) => x.id === p.agent);
+      if (!prov2) throw new RpcError(`${p.agent} is not set up on this computer`);
+      const text = String(p?.text ?? "").trim();
+      if (!text) throw new RpcError("Describe the task to start a conversation");
+      const path = await this.resolveOrCreateWorkspace(p?.workspacePath, text, p?.newProjectName);
+      this.governance?.log({ action: "start", agent: prov2.label, conversationId: "(new)", deviceId, deviceName, detail: text });
+      return prov2.start(path, text, typeof p?.model === "string" ? p.model : void 0);
+    }
+    const prov = this.providerFor(p?.id);
+    if (!prov) return NOT_ROUTED;
+    const id = String(p.id);
+    switch (method) {
+      case "conversation.open": {
+        const opened = await prov.open(id);
+        if (opened.items.length > INITIAL_WINDOW) {
+          const tail2 = opened.items.slice(-INITIAL_WINDOW);
+          const firstIdx = tail2[0].idx;
+          return { ...opened, items: tail2, firstIdx, hasMore: firstIdx > 0 };
+        }
+        return opened;
+      }
+      case "conversation.close":
+        prov.close(id);
+        return { ok: true };
+      case "conversation.history": {
+        const opened = await prov.open(id);
+        const end = typeof p?.before === "number" ? Math.max(0, Math.floor(p.before)) : 0;
+        const earlier = opened.items.filter((i) => i.idx < end);
+        const items = earlier.slice(-HISTORY_PAGE);
+        const firstIdx = items.length ? items[0].idx : 0;
+        return { items, firstIdx, hasMore: earlier.length > items.length };
+      }
+      case "conversation.send": {
+        const text = String(p?.text ?? "").trim();
+        if (!text) throw new RpcError("Message is empty");
+        this.governance?.log({ action: "prompt", agent: prov.label, conversationId: id, deviceId, deviceName, detail: text });
+        await prov.send(id, text);
+        return { ok: true };
+      }
+      case "conversation.cancel":
+        this.governance?.log({ action: "cancel", agent: prov.label, conversationId: id, deviceId, deviceName });
+        await prov.cancel(id);
+        return { ok: true };
+      case "conversation.focus":
+        throw new RpcError(`${prov.label} conversations can't be shown in Antigravity`);
+      case "approval.respond":
+        return this.governedApproval(deviceId, p);
+      default:
+        return NOT_ROUTED;
+    }
+  }
+  /** Dispatches one RPC. `deviceId` is the authenticated caller. */
+  async dispatch(deviceId, method, p, ctx) {
+    try {
+      const FREE = ["host.info", "devices.list", "devices.revoke", "push.register"];
+      if (this.license && !FREE.includes(method)) {
+        const l = this.license.state();
+        if (!l.active) throw new RpcError(`LICENSE_REQUIRED: ${l.message} Open the Pulsar dashboard on your computer to activate.`);
+      }
+      const routed = await this.dispatchProvider(deviceId, method, p);
+      if (routed !== NOT_ROUTED) return routed;
+      switch (method) {
+        case "host.info":
+          return await this.hostInfo();
+        case "conversations.list":
+          return await this.conversations();
+        case "workspaces.list":
+          return await this.workspaces();
+        case "conversation.open": {
+          const id = this.requireConversation(p?.id);
+          return await this.open(id, ctx.subscribe(id));
+        }
+        case "conversation.close":
+          if (ctx.unsubscribe(p?.id)) this.close(p?.id);
+          return { ok: true };
+        case "conversation.history":
+          return await this.history(p?.id, p?.before);
+        case "conversation.send":
+          if (typeof p?.id === "string" && p.id) ctx.subscribe(p.id);
+          this.governance?.log({ action: "prompt", agent: "Antigravity", conversationId: String(p?.id), deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: String(p?.text ?? "") });
+          return await this.send(p);
+        case "conversation.start": {
+          this.governance?.log({ action: "start", agent: "Antigravity", conversationId: "(new)", deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: String(p?.text ?? "") });
+          const started = await this.startConversation(p);
+          ctx.subscribe(started.id);
+          return started;
+        }
+        case "agents.list":
+          return this.agents();
+        case "audit.list":
+          return this.governance?.list({ limit: Number(p?.limit) || 200, conversationId: typeof p?.id === "string" ? p.id : void 0 }) ?? [];
+        case "rules.list":
+          return this.governance?.rules ?? [];
+        case "rules.set":
+          if (!this.governance) throw new RpcError("Approval rules are not available");
+          this.governance.log({ action: "approve", agent: "Pulsar", conversationId: "(rules)", deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `Rules changed: ${JSON.stringify(p?.rules ?? [])}` });
+          return this.governance.setRules(p?.rules);
+        case "rules.autoApprove": {
+          if (!this.governance) throw new RpcError("Approval rules are not available");
+          if (typeof p?.enabled === "boolean") {
+            this.governance.setAutoApproveSafe(p.enabled);
+            this.governance.log({ action: "approve", agent: "Pulsar", conversationId: "(rules)", deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `Auto-approve safe commands: ${p.enabled ? "on" : "off"}` });
+          }
+          return { autoApproveSafe: this.governance.autoApproveSafe };
+        }
+        case "host.preventSleep": {
+          const enabled = this.setPreventSleep(!!p?.enabled);
+          this.governance?.log({ action: "approve", agent: "Pulsar", conversationId: "(settings)", deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `Prevent sleep: ${enabled ? "on" : "off"}` });
+          return { ok: true, preventSleep: enabled };
+        }
+        case "host.wol": {
+          const mac = String(p?.mac || primaryMacAddress() || "").trim();
+          if (!mac) throw new RpcError("No network MAC address is available for Wake-on-LAN");
+          const res = await sendWakeOnLan(mac, typeof p?.broadcastIp === "string" ? p.broadcastIp : "255.255.255.255");
+          this.governance?.log({ action: "approve", agent: "Pulsar", conversationId: "(settings)", deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `Wake-on-LAN packet sent (${res.mac})` });
+          return res;
+        }
+        case "claudeHooks.set": {
+          const installed = installClaudeHooks(this.hostPort, !!p?.enabled);
+          this.governance?.log({ action: "approve", agent: "Pulsar", conversationId: "(settings)", deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `Claude Code CLI hooks: ${installed ? "installed" : "removed"}` });
+          return { ok: true, claudeHooksInstalled: installed };
+        }
+        case "modelApis.list": {
+          const saved = loadModelApis(this.store.dir);
+          return MODEL_API_PRESETS.map((pr) => {
+            const c = saved.find((x) => x.id === pr.id);
+            return { id: pr.id, label: pr.label, keyUrl: pr.keyUrl, needsKey: pr.needsKey, model: c?.model ?? pr.model, baseUrl: c?.baseUrl ?? pr.baseUrl, configured: !!c, hasKey: !!c?.apiKey, active: this.providers.some((x) => x.id === `api:${pr.id}`) };
+          });
+        }
+        case "modelApis.set": {
+          upsertModelApi(this.store.dir, p ?? {});
+          this.governance?.log({ action: "approve", agent: "Pulsar", conversationId: "(settings)", deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `Model API ${p?.remove ? "removed" : "saved"}: ${String(p?.id)}` });
+          await this.syncModelApis();
+          return { ok: true, active: this.providers.some((x) => x.id === `api:${String(p?.id)}`) };
+        }
+        case "conversation.focus":
+          await this.bridge.focus(this.requireConversation(p?.id));
+          return { ok: true };
+        case "conversation.cancel":
+          this.governance?.log({ action: "cancel", agent: "Antigravity", conversationId: String(p?.id), deviceId, deviceName: this.store.getDevice(deviceId)?.name });
+          return await this.cancel(p?.id);
+        case "approval.respond":
+          return await this.governedApproval(deviceId, p);
+        case "models.list":
+          return await this.models();
+        case "changes.list":
+          return await this.changes(p);
+        case "changes.diff":
+          return await this.diff(p);
+        case "changes.commit":
+          return await this.commit(deviceId, p);
+        case "changes.push":
+          return await this.pushRepo(deviceId, p);
+        case "changes.revert":
+          return await this.revert(deviceId, p);
+        case "changes.stash":
+          return await this.stash(deviceId, p);
+        case "changes.revertHunk":
+          return await this.revertDiffHunk(deviceId, p);
+        case "changes.createPr":
+          return await this.createPr(deviceId, p);
+        case "preview.fetch":
+          return await this.preview(p);
+        case "push.register": {
+          const token = typeof p?.token === "string" ? p.token : "";
+          if (token && !isExpoPushToken(token)) throw new RpcError("Invalid push token");
+          this.store.updateDevice(deviceId, { pushToken: token || void 0 });
+          return { ok: true };
+        }
+        case "devices.list":
+          return this.store.listDevices().map(({ key: _key, pushToken, ...d }) => ({ ...d, push: !!pushToken, current: d.deviceId === deviceId }));
+        case "devices.revoke": {
+          if (p?.deviceId !== void 0 && p.deviceId !== deviceId) throw new RpcError("Remove other phones from the Pulsar dashboard on your computer");
+          const removed = this.store.removeDevice(deviceId);
+          this.emit("revoked", deviceId);
+          return { ok: removed };
+        }
+        default:
+          throw new RpcError(`Unknown method ${method}`);
+      }
+    } catch (e) {
+      if (e instanceof RpcError || e instanceof AntigravityError) throw e;
+      throw new RpcError(e.message || "Host error");
+    }
+  }
+};
 
 // src/live/compat.ts
 async function probe(name, fn) {
@@ -11785,7 +13493,7 @@ async function checkCompatibility(servers) {
 
 // src/live/crash.ts
 var import_https2 = require("https");
-var import_os2 = require("os");
+var import_os4 = require("os");
 var ENDPOINT = process.env["AGENTDECK_CRASH_URL"] || "https://agentdeck-telemetry.finnova.com.au/v1/crash";
 function scrub(text) {
   return text.replace(/\/(Users|home)\/[^/\s'"]+/g, "/~").replace(/[A-Za-z]:\\Users\\[^\\\s'"]+/g, "~").replace(/[^\s@'"]+@[^\s@'"]+\.[a-z]{2,}/gi, "<email>").replace(/\b[A-Za-z0-9_\-+/=]{32,}\b/g, "<redacted>");
@@ -11797,24 +13505,24 @@ function reportCrash(error, version, fatal) {
     source: "host",
     version,
     platform: process.platform,
-    os: `${(0, import_os2.release)()} node ${process.versions.node}`,
+    os: `${(0, import_os4.release)()} node ${process.versions.node}`,
     name: scrub(e.name).slice(0, 120),
     message: scrub(e.message).slice(0, 1e3),
     stack: scrub(e.stack ?? "").slice(0, 6e3),
     fatal
   });
-  return new Promise((resolve2) => {
+  return new Promise((resolve3) => {
     try {
       const u = new URL(ENDPOINT);
       const req = (0, import_https2.request)({ host: u.host, path: u.pathname, method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) }, timeout: 5e3 }, (res) => {
         res.resume();
-        res.on("end", () => resolve2());
+        res.on("end", () => resolve3());
       });
-      req.on("error", () => resolve2());
+      req.on("error", () => resolve3());
       req.on("timeout", () => req.destroy());
       req.end(body);
     } catch {
-      resolve2();
+      resolve3();
     }
   });
 }
@@ -11823,6 +13531,7 @@ function reportCrash(error, version, fatal) {
 var import_tweetnacl2 = __toESM(require_nacl_fast());
 var BILLING_URL = process.env["AGENTDECK_BILLING_URL"] || "https://agentdeck-billing.finnova.com.au";
 var PRICING_URL = "https://agentdeck.finnova.com.au/pricing";
+var ACCOUNT_URL = "https://agentdeck.finnova.com.au/account";
 var LICENSE_PUBLIC_KEY = process.env["AGENTDECK_LICENSE_PUBLIC_KEY"] || "Gc8uSIbd/Xm19SF9W2dzfwuMC++bsmQ8+RhAq5wQtyk=";
 var REFRESH_MS = 12 * 3600 * 1e3;
 var OFFLINE_GRACE_MS = 14 * 86400 * 1e3;
@@ -11888,7 +13597,7 @@ var LicenseManager = class {
     } else if (s.status === "paused") {
       message = "This subscription is paused. Resume it to keep using Pulsar.";
     } else if (s.status === "too_many_hosts") {
-      message = "This license is already used on 3 computers.";
+      message = "This license is already used on all the computers it covers. Add a computer from Manage billing.";
     } else if (s.status === "canceled") {
       message = "This subscription has ended.";
     } else if (s.status === "invalid") {
@@ -11917,7 +13626,7 @@ var LicenseManager = class {
     if (st.hostId !== this.store.config.hostId || st.key && st.key !== key) throw new Error("The license answer was for a different key or computer.");
     const switching = this.cache.key && this.cache.key !== key;
     if (switching && (st.status === "invalid" || st.status === "too_many_hosts")) {
-      throw new Error(st.status === "invalid" ? "This license key is not valid. Your current license was kept." : "That license is already used on 3 computers. Your current license was kept.");
+      throw new Error(st.status === "invalid" ? "This license key is not valid. Your current license was kept." : "That license is already used on all the computers it covers (add one from Manage billing). Your current license was kept.");
     }
     const pastDueSince = st.status === "past_due" ? (this.cache.key === key ? this.cache.pastDueSince : void 0) ?? this.now() : void 0;
     this.save({ key, payload: signed.payload, signature: signed.signature, pastDueSince });
@@ -11944,14 +13653,14 @@ var LicenseManager = class {
     this.timer = null;
   }
   portalUrl() {
-    return this.cache.key ? `${this.url}/portal?key=${encodeURIComponent(this.cache.key)}` : null;
+    return this.cache.key ? `${ACCOUNT_URL}#key=${encodeURIComponent(this.cache.key)}` : null;
   }
 };
 
 // src/live/store.ts
-var import_fs4 = require("fs");
-var import_os3 = require("os");
-var import_path3 = require("path");
+var import_fs6 = require("fs");
+var import_os5 = require("os");
+var import_path6 = require("path");
 var Store = class {
   dir;
   hostFile;
@@ -11960,17 +13669,17 @@ var Store = class {
   /** True when this run created the host identity (first launch). */
   isNew;
   devices;
-  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path3.join)((0, import_os3.homedir)(), ".agentdeck")) {
+  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path6.join)((0, import_os5.homedir)(), ".agentdeck")) {
     this.dir = dir;
-    (0, import_fs4.mkdirSync)(dir, { recursive: true, mode: 448 });
-    (0, import_fs4.chmodSync)(dir, 448);
-    this.hostFile = (0, import_path3.join)(dir, "host.json");
-    this.devicesFile = (0, import_path3.join)(dir, "devices.json");
+    (0, import_fs6.mkdirSync)(dir, { recursive: true, mode: 448 });
+    (0, import_fs6.chmodSync)(dir, 448);
+    this.hostFile = (0, import_path6.join)(dir, "host.json");
+    this.devicesFile = (0, import_path6.join)(dir, "devices.json");
     const saved = this.read(this.hostFile);
     this.isNew = !saved;
     this.config = saved ?? {
       hostId: randomId(12),
-      hostName: (0, import_os3.hostname)().replace(/\.local$/, ""),
+      hostName: (0, import_os5.hostname)().replace(/\.local$/, ""),
       relayToken: randomId(32)
     };
     if (process.env["AGENTDECK_RELAY_URL"]) this.config.relayUrl = process.env["AGENTDECK_RELAY_URL"];
@@ -11979,16 +13688,16 @@ var Store = class {
   }
   read(file) {
     try {
-      return (0, import_fs4.existsSync)(file) ? JSON.parse((0, import_fs4.readFileSync)(file, "utf8")) : null;
+      return (0, import_fs6.existsSync)(file) ? JSON.parse((0, import_fs6.readFileSync)(file, "utf8")) : null;
     } catch {
       return null;
     }
   }
   write(file, value) {
     const tmp = `${file}.tmp`;
-    (0, import_fs4.writeFileSync)(tmp, JSON.stringify(value, null, 2), { mode: 384 });
-    (0, import_fs4.renameSync)(tmp, file);
-    (0, import_fs4.chmodSync)(file, 384);
+    (0, import_fs6.writeFileSync)(tmp, JSON.stringify(value, null, 2), { mode: 384 });
+    (0, import_fs6.renameSync)(tmp, file);
+    (0, import_fs6.chmodSync)(file, 384);
   }
   saveConfig(patch) {
     this.config = { ...this.config, ...patch };
@@ -12019,8 +13728,8 @@ var Store = class {
 
 // src/live/server.ts
 var import_http2 = require("http");
-var import_os4 = require("os");
-var import_child_process3 = require("child_process");
+var import_os6 = require("os");
+var import_child_process5 = require("child_process");
 var import_qrcode = __toESM(require_lib());
 
 // ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/wrapper.mjs
@@ -12341,9 +14050,11 @@ code{font:13px ui-monospace,Menlo,monospace}.code{font:600 22px ui-monospace,Men
 <div class="row"><input id="licKey" placeholder="ADK-XXXX-XXXX-XXXX-XXXX" autocomplete="off"><button id="licBtn">Activate</button></div>
 <div id="licLinks" class="muted"><a href="https://agentdeck.finnova.com.au/pricing" target="_blank" rel="noopener">Buy a license</a></div></div>
 <div class="card"><h2>Pair a phone</h2>
-<p class="muted">Open Pulsar on your phone, tap <b>Pair with Mac</b>, and scan this code. Codes expire after 10 minutes and work once.</p>
+<p class="muted">Open Pulsar on your phone, tap <b>Scan pairing code</b>, and scan this code. Codes expire after 10 minutes and work once.</p>
 <div id="pair"><button id="pairBtn">Show pairing code</button></div></div>
 <div class="card"><h2>Paired phones</h2><div id="devices" class="muted">None yet.</div></div>
+<div class="card"><h2>Agents</h2><div id="agents" class="muted">Antigravity</div></div>
+<div class="card"><h2>Recent activity</h2><p class="muted">Messages, task starts and approvals from your phones. Kept only on this computer. Approval rules are set from the phone (Settings \u2192 Activity).</p><div id="rules" class="muted"></div><div id="audit" class="muted">Nothing yet.</div></div>
 <div class="card"><h2>Remote access (away from Wi-Fi)</h2>
 <p class="muted">Point the host at a Pulsar relay. The relay forwards encrypted traffic only; it cannot read your code or prompts.</p>
 <div class="row"><input id="relay" placeholder="wss://relay.example.com"><button id="relayBtn">Save</button></div><div id="relayStatus" class="muted"></div></div>
@@ -12365,6 +14076,10 @@ async function refresh(){
   $('devices').innerHTML=s.devices.length?s.devices.map(d=>'<div class="row"><span><b>'+esc(d.name)+'</b> <span class="muted">'+esc(d.platform)+' \xB7 paired '+esc(new Date(d.pairedAt).toLocaleDateString())+(d.lastSeen?' \xB7 seen '+esc(new Date(d.lastSeen).toLocaleString()):'')+(d.push?' \xB7 notifications on':'')+'</span></span><button class="ghost" data-id="'+esc(d.deviceId)+'">Remove</button></div>').join(''):'None yet.';
   document.querySelectorAll('#devices button').forEach(b=>b.onclick=async()=>{if(confirm('Remove this phone? It will need to pair again.')){await post('/local/devices/revoke',{deviceId:b.dataset.id});refresh();}});
   if($('qr')&&!s.pairing.active){clearInterval(timer);$('pair').innerHTML='<p><b>Phone paired.</b> <button id="pairBtn3">Pair another</button></p>';$('pairBtn3').onclick=$('pairBtn').onclick;}
+  $('agents').innerHTML=(s.agents||[]).map(a=>'<div class="row"><span><span class="dot" style="background:var(--ok)"></span>'+esc(a.label)+'</span></div>').join('');
+  $('rules').innerHTML=(s.rules||[]).map(r=>'<div class="row"><code>'+esc(r.pattern)+'</code><span>needs '+esc(r.approvals)+' phones</span></div>').join('');
+  const ACT={prompt:'Sent a message',start:'Started a task','approval-requested':'Asked for approval',approve:'Approved',deny:'Denied',cancel:'Stopped'};
+  $('audit').innerHTML=(s.audit||[]).length?s.audit.map(e=>'<div class="row"><span><b>'+esc(ACT[e.action]||e.action)+'</b>'+(e.deviceName?' \xB7 '+esc(e.deviceName):'')+' <span class="muted">'+esc(e.agent)+(e.detail?' \xB7 '+esc(e.detail.slice(0,120)):'')+(e.progress?' \xB7 '+esc(e.progress):'')+'</span></span><span class="muted">'+esc(new Date(e.at).toLocaleString())+'</span></div>').join(''):'Nothing yet.';
   const L=s.license;
   if(L){$('lic').innerHTML='<span class="dot" style="background:'+(L.active&&L.status!=='none'?'var(--ok)':L.required?'var(--bad)':'var(--muted)')+'"></span>'+esc(L.required||L.key?L.message:'Free while Pulsar sales are not open yet.')+(L.renewsAt?' Renews '+esc(new Date(L.renewsAt).toLocaleDateString())+'.':'')+(L.email?' ('+esc(L.email)+')':'');
     $('licLinks').innerHTML=(L.portalUrl?'<a href="'+esc(L.portalUrl)+'" target="_blank" rel="noopener">Manage billing, invoices or cancel</a> \xB7 ':'')+'<a href="https://agentdeck.finnova.com.au/pricing" target="_blank" rel="noopener">'+(L.key?'Pricing':'Buy a license')+'</a>';}
@@ -12448,7 +14163,7 @@ load();watch();
 // src/live/server.ts
 function lanAddresses() {
   const out = [];
-  for (const list of Object.values((0, import_os4.networkInterfaces)())) {
+  for (const list of Object.values((0, import_os6.networkInterfaces)())) {
     for (const a of list ?? []) {
       if (a.family === "IPv4" && !a.internal && !a.address.startsWith("169.254.")) out.push(a.address);
     }
@@ -12475,7 +14190,7 @@ function json(res, status2, body) {
   res.end(JSON.stringify(body));
 }
 function readBody(req, limit = 64 * 1024) {
-  return new Promise((resolve2, reject) => {
+  return new Promise((resolve3, reject) => {
     let size = 0;
     const chunks = [];
     req.on("data", (c) => {
@@ -12487,7 +14202,7 @@ function readBody(req, limit = 64 * 1024) {
     });
     req.on("end", () => {
       try {
-        resolve2(chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {});
+        resolve3(chunks.length ? JSON.parse(Buffer.concat(chunks).toString("utf8")) : {});
       } catch (e) {
         reject(e);
       }
@@ -12595,7 +14310,10 @@ var HostServer = class {
           devices: this.store.listDevices().map(({ key: _k, pushToken, ...d }) => ({ ...d, push: !!pushToken })),
           license: this.service.license ? { ...this.service.license.state(), portalUrl: this.service.license.portalUrl() } : null,
           connectedPhones: [...this.sessions].filter((s) => s.authenticatedDevice).length,
-          conversations: (await this.service.conversations().catch(() => [])).length
+          conversations: (await this.service.conversations().catch(() => [])).length,
+          agents: this.service.agents(),
+          audit: this.service.governance?.list({ limit: 20 }) ?? [],
+          rules: this.service.governance?.rules ?? []
         });
       }
       if (req.method === "POST" && !isTrustedLocalAction(req, this.port)) return json(res, 403, { error: "Forbidden" });
@@ -12636,6 +14354,30 @@ var HostServer = class {
         this.setRelay(relayUrl || null);
         return json(res, 200, { ok: true, relay: this.relayStatus() });
       }
+      if (req.method === "POST" && url.pathname === "/local/hooks/claude") {
+        const body = await readBody(req);
+        const decision = await this.service.handleClaudeHook(body);
+        return json(res, 200, {
+          hookSpecificOutput: {
+            hookEventName: String(body?.hook_event_name || "PermissionRequest"),
+            decision: {
+              behavior: decision.allow ? "allow" : "deny",
+              ...decision.message ? { message: decision.message } : {}
+            }
+          }
+        });
+      }
+      if (req.method === "POST" && url.pathname === "/local/settings") {
+        const body = await readBody(req);
+        if (typeof body.preventSleep === "boolean") {
+          this.service.setPreventSleep(body.preventSleep);
+        }
+        if (typeof body.claudeHooks === "boolean") {
+          installClaudeHooks(this.port, body.claudeHooks);
+        }
+        const info = await this.service.hostInfo();
+        return json(res, 200, { ok: true, preventSleep: info.preventSleep, claudeHooksInstalled: info.claudeHooksInstalled });
+      }
       return json(res, 404, { error: "Not found" });
     } catch (e) {
       return json(res, 500, { error: e.message });
@@ -12651,12 +14393,13 @@ var HostServer = class {
       }
       this.wss.handleUpgrade(req, socket, head, (ws) => this.onSocket(ws, req));
     });
-    await new Promise((resolve2, reject) => {
+    await new Promise((resolve3, reject) => {
       this.http.once("error", reject);
-      this.http.listen(this.opts.port, this.opts.bind ?? "0.0.0.0", () => resolve2());
+      this.http.listen(this.opts.port, this.opts.bind ?? "0.0.0.0", () => resolve3());
     });
     const addr = this.http.address();
     this.port = typeof addr === "object" && addr ? addr.port : this.opts.port;
+    this.service.hostPort = this.port;
     if (this.store.config.relayUrl) this.setRelay(this.store.config.relayUrl);
     if (this.opts.advertise !== false) this.advertise();
     return this.port;
@@ -12695,7 +14438,7 @@ var HostServer = class {
     const cmd2 = process.platform === "darwin" ? ["dns-sd", ["-R", name, "_agentdeck._tcp", "local", String(this.port), ...txt]] : process.platform === "linux" ? ["avahi-publish-service", [name, "_agentdeck._tcp", String(this.port), ...txt]] : null;
     if (!cmd2) return;
     try {
-      this.advertiser = (0, import_child_process3.spawn)(cmd2[0], cmd2[1], { stdio: "ignore" });
+      this.advertiser = (0, import_child_process5.spawn)(cmd2[0], cmd2[1], { stdio: "ignore" });
       this.advertiser.on("error", () => this.advertiser = null);
     } catch {
       this.advertiser = null;
@@ -12708,6 +14451,824 @@ var HostServer = class {
     const closing = new Promise((r) => this.http ? this.http.close(() => r()) : r());
     this.http?.closeAllConnections?.();
     await closing;
+  }
+};
+
+// src/live/governance.ts
+var import_fs7 = require("fs");
+var import_path7 = require("path");
+var MAX_AUDIT_BYTES = 5 * 1024 * 1024;
+var SHELL_CHAIN_RE = /[;&|`$<>]|\r|\n/;
+var SAFE_COMMAND_RE = /^\s*(ls|pwd|whoami|date|uname|which|cat|head|tail|wc|stat|file|grep|rg|git\s+(status|diff|log|branch|show|rev-parse)|npm\s+(test|run\s+(test|lint|typecheck|check))|pnpm\s+(test|lint|typecheck|check)|yarn\s+(test|lint|typecheck)|npx\s+(tsc|jest|vitest)|pytest|cargo\s+(test|check)|go\s+test)(\s+[-a-zA-Z0-9_./:@=]+)*\s*$/i;
+var HIGH_RISK_RE = /\b(rm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r|--recursive)|sudo\b|git\s+push\b|git\s+reset\s+--hard|curl\b.*\|\s*(ba)?sh|wget\b.*\|\s*(ba)?sh|chmod\b|chown\b|mkfs\b|dd\s+if=|npm\s+publish\b|docker\s+run\b|kubectl\s+(delete|apply)\b)/i;
+function scoreCommandRisk(detail) {
+  const cmd2 = (detail ?? "").trim();
+  if (!cmd2) return "moderate";
+  if (HIGH_RISK_RE.test(cmd2)) return "high";
+  if (!SHELL_CHAIN_RE.test(cmd2) && SAFE_COMMAND_RE.test(cmd2)) return "safe";
+  return "moderate";
+}
+var Governance = class {
+  auditFile;
+  rulesFile;
+  prefsFile;
+  rules;
+  autoApproveSafe = false;
+  votes = /* @__PURE__ */ new Map();
+  constructor(dir) {
+    this.auditFile = (0, import_path7.join)(dir, "audit.jsonl");
+    this.rulesFile = (0, import_path7.join)(dir, "rules.json");
+    this.prefsFile = (0, import_path7.join)(dir, "governance-prefs.json");
+    try {
+      this.rules = (0, import_fs7.existsSync)(this.rulesFile) ? JSON.parse((0, import_fs7.readFileSync)(this.rulesFile, "utf8")) : [];
+    } catch {
+      this.rules = [];
+    }
+    try {
+      if ((0, import_fs7.existsSync)(this.prefsFile)) {
+        const p = JSON.parse((0, import_fs7.readFileSync)(this.prefsFile, "utf8"));
+        this.autoApproveSafe = !!p?.autoApproveSafe;
+      }
+    } catch {
+      this.autoApproveSafe = false;
+    }
+  }
+  setAutoApproveSafe(enabled) {
+    this.autoApproveSafe = !!enabled;
+    try {
+      (0, import_fs7.writeFileSync)(this.prefsFile, JSON.stringify({ autoApproveSafe: this.autoApproveSafe }, null, 2), { mode: 384 });
+    } catch {
+    }
+    return this.autoApproveSafe;
+  }
+  log(e) {
+    const entry = { at: (/* @__PURE__ */ new Date()).toISOString(), ...e, ...e.detail ? { detail: e.detail.slice(0, 500) } : {} };
+    try {
+      if ((0, import_fs7.existsSync)(this.auditFile) && (0, import_fs7.statSync)(this.auditFile).size > MAX_AUDIT_BYTES) (0, import_fs7.renameSync)(this.auditFile, this.auditFile.replace(/\.jsonl$/, ".1.jsonl"));
+      (0, import_fs7.appendFileSync)(this.auditFile, `${JSON.stringify(entry)}
+`, { mode: 384 });
+    } catch {
+    }
+  }
+  list(opts = {}) {
+    if (!(0, import_fs7.existsSync)(this.auditFile)) return [];
+    const lines = (0, import_fs7.readFileSync)(this.auditFile, "utf8").trim().split("\n").filter(Boolean);
+    const out = [];
+    for (let i = lines.length - 1; i >= 0 && out.length < (opts.limit ?? 200); i--) {
+      try {
+        const e = JSON.parse(lines[i]);
+        if (!opts.conversationId || e.conversationId === opts.conversationId) out.push(e);
+      } catch {
+      }
+    }
+    return out;
+  }
+  setRules(rules) {
+    if (!Array.isArray(rules)) throw new Error("rules must be a list");
+    const clean = rules.slice(0, 50).map((r, i) => {
+      const pattern = String(r?.pattern ?? "").trim();
+      if (!pattern) throw new Error("Each rule needs a pattern");
+      try {
+        new RegExp(pattern, "i");
+      } catch {
+        throw new Error(`Invalid pattern: ${pattern}`);
+      }
+      const rawApprovals = r?.approvals === 0 || r?.approvals === "0" ? 0 : Number(r?.approvals);
+      const approvals = Number.isFinite(rawApprovals) ? Math.max(0, Math.min(5, Math.floor(rawApprovals))) : 1;
+      return { id: String(r?.id || `rule-${i + 1}`), pattern, approvals, ...r?.label ? { label: String(r.label).slice(0, 80) } : {} };
+    });
+    this.rules = clean;
+    (0, import_fs7.writeFileSync)(this.rulesFile, JSON.stringify(clean, null, 2), { mode: 384 });
+    return clean;
+  }
+  /** Approvals needed for this command / action text (0 = auto-approve, 1 = single phone, 2..5 = multi-phone quorum). */
+  required(detail) {
+    const risk = scoreCommandRisk(detail);
+    let best = { approvals: 1, risk };
+    let matchedZeroRule;
+    for (const r of this.rules) {
+      try {
+        if (detail && new RegExp(r.pattern, "i").test(detail)) {
+          if (r.approvals === 0) matchedZeroRule = r;
+          else if (r.approvals > best.approvals) best = { approvals: r.approvals, rule: r, risk };
+        }
+      } catch {
+      }
+    }
+    if (best.approvals > 1) return best;
+    if (matchedZeroRule && risk !== "high") {
+      return { approvals: 0, rule: matchedZeroRule, risk, autoApprove: true };
+    }
+    if (this.autoApproveSafe && risk === "safe") {
+      return { approvals: 0, risk: "safe", autoApprove: true };
+    }
+    return best;
+  }
+  /**
+   * Records one phone's approval. Returns 'ready' when enough different phones have approved,
+   * otherwise the progress text ("1 of 2 approvals").
+   */
+  vote(key, deviceId, needed) {
+    const set = this.votes.get(key) ?? /* @__PURE__ */ new Set();
+    set.add(deviceId);
+    this.votes.set(key, set);
+    if (set.size >= needed) {
+      this.votes.delete(key);
+      return { ready: true };
+    }
+    return { ready: false, progress: `${set.size} of ${needed} approvals`, count: set.size };
+  }
+  clearVotes(key) {
+    this.votes.delete(key);
+  }
+};
+
+// src/live/agents/codex.ts
+var import_events5 = require("events");
+var import_fs8 = require("fs");
+var import_os7 = require("os");
+var import_path8 = require("path");
+
+// src/live/agents/jsonrpc.ts
+var import_child_process6 = require("child_process");
+var import_events4 = require("events");
+var RpcProcessError = class extends Error {
+};
+var StdioRpc = class extends import_events4.EventEmitter {
+  constructor(command, args, opts) {
+    super();
+    this.command = command;
+    this.args = args;
+    this.opts = opts;
+  }
+  proc = null;
+  nextId = 1;
+  pending = /* @__PURE__ */ new Map();
+  buf = "";
+  /** Answers the agent's own requests (e.g. "may I run this command?"). */
+  onRequest = async (m) => {
+    throw new RpcProcessError(`Unsupported request ${m}`);
+  };
+  get running() {
+    return !!this.proc && this.proc.exitCode === null;
+  }
+  start() {
+    if (this.running) return;
+    const p = (0, import_child_process6.spawn)(this.command, this.args, { cwd: this.opts.cwd, env: { ...process.env, ...this.opts.env }, stdio: ["pipe", "pipe", "pipe"] });
+    this.proc = p;
+    p.stdout.setEncoding("utf8");
+    p.stdout.on("data", (chunk) => this.onData(chunk));
+    p.stderr.on("data", () => void 0);
+    p.on("error", (e) => this.fail(new RpcProcessError(`${this.opts.label} could not start: ${e.message}`)));
+    p.on("exit", (code) => this.fail(new RpcProcessError(`${this.opts.label} stopped${code !== null ? ` (exit ${code})` : ""}`)));
+  }
+  fail(e) {
+    for (const [, w] of this.pending) {
+      clearTimeout(w.timer);
+      w.reject(e);
+    }
+    this.pending.clear();
+    this.proc = null;
+    this.emit("exit", e);
+  }
+  stop() {
+    const p = this.proc;
+    this.proc = null;
+    if (p && p.exitCode === null) p.kill();
+  }
+  onData(chunk) {
+    this.buf += chunk;
+    let i;
+    while ((i = this.buf.indexOf("\n")) >= 0) {
+      const line = this.buf.slice(0, i).trim();
+      this.buf = this.buf.slice(i + 1);
+      if (!line) continue;
+      let msg;
+      try {
+        msg = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      void this.handle(msg);
+    }
+  }
+  async handle(msg) {
+    if (msg.id !== void 0 && (msg.result !== void 0 || msg.error) && !msg.method) {
+      const w = this.pending.get(msg.id);
+      if (!w) return;
+      this.pending.delete(msg.id);
+      clearTimeout(w.timer);
+      if (msg.error) w.reject(new RpcProcessError(rpcErrorText(msg.error)));
+      else w.resolve(msg.result);
+      return;
+    }
+    if (msg.method && msg.id !== void 0) {
+      try {
+        const result = await this.onRequest(msg.method, msg.params);
+        this.write({ jsonrpc: "2.0", id: msg.id, result });
+      } catch (e) {
+        this.write({ jsonrpc: "2.0", id: msg.id, error: { code: -32603, message: e.message } });
+      }
+      return;
+    }
+    if (msg.method) this.emit("notification", msg.method, msg.params);
+  }
+  write(msg) {
+    if (!this.proc) throw new RpcProcessError(`${this.opts.label} is not running`);
+    this.proc.stdin.write(`${JSON.stringify(msg)}
+`);
+  }
+  request(method, params, timeoutMs = 6e4) {
+    if (!this.running) this.start();
+    const id = this.nextId++;
+    return new Promise((resolve3, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new RpcProcessError(`${this.opts.label} did not answer ${method}`));
+      }, timeoutMs);
+      this.pending.set(id, { resolve: resolve3, reject, timer });
+      try {
+        this.write({ jsonrpc: "2.0", id, method, params });
+      } catch (e) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(e);
+      }
+    });
+  }
+  notify(method, params) {
+    this.write({ jsonrpc: "2.0", method, ...params !== void 0 ? { params } : {} });
+  }
+};
+async function commandExists(cmd2) {
+  const { access } = await import("fs/promises");
+  const { constants } = await import("fs");
+  const { delimiter, join: join11, isAbsolute: isAbsolute3 } = await import("path");
+  if (isAbsolute3(cmd2)) return access(cmd2, constants.X_OK).then(() => true, () => false);
+  const exts = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
+  for (const dir of (process.env["PATH"] ?? "").split(delimiter)) {
+    for (const ext of exts) {
+      if (await access(join11(dir, cmd2 + ext), constants.X_OK).then(() => true, () => false)) return true;
+    }
+  }
+  return false;
+}
+function rpcErrorText(e) {
+  const inner = (v) => {
+    if (typeof v === "string") {
+      try {
+        return inner(JSON.parse(v)) ?? v;
+      } catch {
+        return v;
+      }
+    }
+    if (v && typeof v === "object") {
+      const o = v;
+      return inner(o["error"]) ?? inner(o["message"]) ?? (typeof o["details"] === "string" ? o["details"] : void 0);
+    }
+    return void 0;
+  };
+  const detail = inner(e.data);
+  const base = e.message || "Agent error";
+  return detail && detail !== base ? /^internal error$/i.test(base) ? detail : `${base}: ${detail}` : base;
+}
+
+// src/live/agents/codex.ts
+function findExtensionCodexBin() {
+  const roots = [
+    (0, import_path8.join)((0, import_os7.homedir)(), ".vscode", "extensions"),
+    (0, import_path8.join)((0, import_os7.homedir)(), ".antigravity", "extensions"),
+    (0, import_path8.join)((0, import_os7.homedir)(), ".cursor", "extensions")
+  ];
+  const candidates = [];
+  for (const root of roots) {
+    try {
+      for (const d of (0, import_fs8.readdirSync)(root)) {
+        if (!d.startsWith("openai.chatgpt-")) continue;
+        const binDir = (0, import_path8.join)(root, d, "bin");
+        if (!(0, import_fs8.existsSync)(binDir)) continue;
+        for (const arch of (0, import_fs8.readdirSync)(binDir)) {
+          const bin = (0, import_path8.join)(binDir, arch, process.platform === "win32" ? "codex.exe" : "codex");
+          if ((0, import_fs8.existsSync)(bin)) candidates.push(bin);
+        }
+      }
+    } catch {
+    }
+  }
+  return candidates.sort().pop() ?? null;
+}
+var PREFIX2 = "codex:";
+var ACTIVE_WRITER = /active writer/i;
+var tid = (id) => id.slice(PREFIX2.length);
+var iso = (sec) => sec ? new Date(sec * 1e3).toISOString() : "";
+var stepState2 = (s) => s === "completed" ? "done" : s === "failed" ? "error" : s === "declined" ? "canceled" : "running";
+var repoFromUrl = (u) => u?.replace(/\.git$/, "").split(/[/:]/).slice(-2).join("/") || null;
+function codexItem(it) {
+  const at = nowIso();
+  switch (it?.type) {
+    case "userMessage": {
+      const text = (it.content ?? []).filter((c) => c.type === "text").map((c) => c.text).join("\n");
+      const images = (it.content ?? []).filter((c) => c.type === "image" || c.type === "localImage").length;
+      return text || images ? { kind: "user", at, text, images } : null;
+    }
+    case "agentMessage":
+      return it.text ? { kind: "agent", at, text: it.text } : null;
+    case "plan":
+      return { kind: "agent", at, text: `**Plan**
+
+${it.text}` };
+    case "commandExecution":
+      return {
+        kind: "tool",
+        at,
+        tool: "command",
+        title: it.command ?? "Command",
+        detail: tailText(it.aggregatedOutput),
+        status: stepState2(it.status),
+        ...typeof it.exitCode === "number" ? { exitCode: it.exitCode } : {}
+      };
+    case "fileChange": {
+      const paths = (it.changes ?? []).map((c) => c.path);
+      return { kind: "tool", at, tool: "edit", title: paths.length === 1 ? `Edited ${(0, import_path8.basename)(paths[0])}` : `Edited ${paths.length} files`, detail: paths.join("\n"), status: stepState2(it.status) };
+    }
+    case "mcpToolCall":
+      return { kind: "tool", at, tool: "mcp", title: `${it.server}: ${it.tool}`, status: stepState2(it.status) };
+    case "webSearch":
+      return { kind: "tool", at, tool: "web", title: it.query ? `Searched the web: ${it.query}` : "Searched the web", status: "done" };
+    default:
+      return null;
+  }
+}
+var CodexProvider = class extends import_events5.EventEmitter {
+  id = "codex";
+  kind = "codex";
+  label = "Codex";
+  prefix = PREFIX2;
+  rpc = null;
+  ready = null;
+  threads = /* @__PURE__ */ new Map();
+  listAt = 0;
+  book = new ItemBook();
+  /** Codex item id -> our index, per conversation. */
+  idxOf = /* @__PURE__ */ new Map();
+  activeTurn = /* @__PURE__ */ new Map();
+  loaded = /* @__PURE__ */ new Set();
+  bin;
+  constructor(bin = process.env["AGENTDECK_CODEX_BIN"] || "codex") {
+    super();
+    this.bin = bin;
+  }
+  async available() {
+    if (await commandExists(this.bin)) return true;
+    if (this.bin === "codex") {
+      const extBin = findExtensionCodexBin();
+      if (extBin) {
+        this.bin = extBin;
+        return true;
+      }
+    }
+    return false;
+  }
+  async conn() {
+    if (this.rpc?.running && this.ready) {
+      await this.ready;
+      return this.rpc;
+    }
+    const rpc = new StdioRpc(this.bin, ["app-server"], { label: "Codex" });
+    this.rpc = rpc;
+    rpc.onRequest = (m, p) => this.onAgentRequest(m, p);
+    rpc.on("notification", (m, p) => this.onNotification(m, p));
+    rpc.on("exit", () => {
+      this.ready = null;
+      this.loaded.clear();
+      this.book.denyAll();
+    });
+    rpc.start();
+    this.ready = rpc.request("initialize", { clientInfo: { name: "pulsar", title: "Pulsar", version: "1.3.0" }, capabilities: null }, 3e4).then(() => rpc.notify("initialized"));
+    await this.ready;
+    return rpc;
+  }
+  summary(t) {
+    const id = PREFIX2 + t.id;
+    const running = t.status?.type === "active" || this.activeTurn.has(id);
+    const status2 = running ? "running" : "idle";
+    return {
+      id,
+      agent: "codex",
+      title: t.name || t.preview?.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.slice(0, 80) || "Codex conversation",
+      status: status2,
+      stepCount: this.book.list(id).length,
+      updatedAt: iso(t.updatedAt),
+      createdAt: iso(t.createdAt),
+      workspacePath: t.cwd ?? null,
+      workspaceName: t.cwd ? (0, import_path8.basename)(t.cwd) : null,
+      repo: repoFromUrl(t.gitInfo?.originUrl),
+      branch: t.gitInfo?.branch ?? null,
+      pendingApprovals: this.book.pending(id)
+    };
+  }
+  async conversations() {
+    if (Date.now() - this.listAt > 5e3) {
+      const rpc = await this.conn();
+      const r = await rpc.request("thread/list", { limit: 50 });
+      for (const t of r.data ?? []) this.threads.set(t.id, { ...this.threads.get(t.id), ...t });
+      this.listAt = Date.now();
+    }
+    return [...this.threads.values()].map((t) => this.summary(t)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+  rebuild(id, t) {
+    const items = [];
+    let n = 0;
+    for (const turn of t.turns ?? []) {
+      for (const it of turn.items ?? []) {
+        const c = codexItem(it);
+        if (!c) continue;
+        this.idxOf.set(`${id}#${it.id}`, n);
+        items.push({ ...c, idx: n++ });
+      }
+    }
+    for (const old of this.book.list(id)) if (old.kind === "approval" && !old.resolved) items.push({ ...old, idx: n++ });
+    this.book.reset(id, items);
+  }
+  async open(id) {
+    const rpc = await this.conn();
+    if (!this.loaded.has(id)) {
+      try {
+        const r = await rpc.request("thread/resume", { threadId: tid(id) }, 6e4);
+        this.threads.set(r.thread.id, { ...this.threads.get(r.thread.id), ...r.thread });
+        this.rebuild(id, r.thread);
+        this.loaded.add(id);
+      } catch (e) {
+        if (!ACTIVE_WRITER.test(e.message)) throw e;
+        const r = await rpc.request("thread/turns/list", { threadId: tid(id), limit: 10, itemsView: "full" }, 6e4);
+        const t2 = this.threads.get(tid(id));
+        if (t2) this.rebuild(id, { ...t2, turns: [...r.data].reverse() });
+      }
+    }
+    const t = this.threads.get(tid(id));
+    return { items: this.book.list(id), firstIdx: 0, hasMore: false, conversation: t ? this.summary(t) : null };
+  }
+  close() {
+  }
+  async send(id, text) {
+    await this.open(id);
+    if (!this.loaded.has(id)) throw new Error("This Codex conversation is open in another Codex window. Close it there, then send from your phone.");
+    const rpc = await this.conn();
+    await rpc.request("turn/start", { threadId: tid(id), input: [{ type: "text", text, text_elements: [] }] });
+  }
+  async start(workspacePath, text, model) {
+    const rpc = await this.conn();
+    const r = await rpc.request("thread/start", { cwd: workspacePath, approvalPolicy: "on-request", ...model ? { model } : {} });
+    const id = PREFIX2 + r.thread.id;
+    this.threads.set(r.thread.id, { ...r.thread, cwd: r.thread.cwd ?? workspacePath, preview: text });
+    this.book.reset(id, []);
+    this.loaded.add(id);
+    await rpc.request("turn/start", { threadId: r.thread.id, input: [{ type: "text", text, text_elements: [] }] });
+    this.emit("conversations");
+    return { id };
+  }
+  async cancel(id) {
+    const turnId = this.activeTurn.get(id);
+    if (!turnId) return;
+    const rpc = await this.conn();
+    await rpc.request("turn/interrupt", { threadId: tid(id), turnId });
+  }
+  async respondApproval(id, idx, allow) {
+    const resolved = this.book.answer(id, idx, allow);
+    if (!resolved) throw new Error("This approval is no longer pending");
+    this.emit("items", { id, items: [resolved] });
+    this.emit("conversations");
+  }
+  approvalItem(id, idx) {
+    const i = this.book.get(id, idx);
+    return i?.kind === "approval" ? i : null;
+  }
+  // ---------- agent -> us ----------
+  upsert(threadId, item) {
+    const id = PREFIX2 + threadId;
+    const c = codexItem(item);
+    if (!c) return;
+    const k = `${id}#${item.id}`;
+    const idx = this.idxOf.get(k);
+    const put = this.book.put(id, { ...c, ...idx !== void 0 ? { idx } : {} });
+    this.idxOf.set(k, put.idx);
+    this.emit("items", { id, items: [put] });
+  }
+  onNotification(method, p) {
+    const threadId = p?.threadId;
+    if (!threadId) return;
+    const id = PREFIX2 + threadId;
+    switch (method) {
+      case "item/started":
+      case "item/completed":
+        this.upsert(threadId, p.item);
+        break;
+      case "turn/started":
+        this.activeTurn.set(id, p.turn?.id);
+        this.emit("conversations");
+        break;
+      case "turn/completed": {
+        this.activeTurn.delete(id);
+        const t = this.threads.get(threadId);
+        if (t) this.threads.set(threadId, { ...t, updatedAt: Math.floor(Date.now() / 1e3), status: { type: "idle" } });
+        this.emit("conversations");
+        this.emit("finished", { id });
+        break;
+      }
+      case "thread/status/changed": {
+        const t = this.threads.get(threadId);
+        if (t) this.threads.set(threadId, { ...t, status: p.status });
+        this.emit("conversations");
+        break;
+      }
+    }
+  }
+  async onAgentRequest(method, p) {
+    if (method === "item/commandExecution/requestApproval" || method === "item/fileChange/requestApproval") {
+      const id = PREFIX2 + p.threadId;
+      const isCmd = method.startsWith("item/commandExecution");
+      const changed = !isCmd ? this.book.list(id).find((i) => i.kind === "tool" && i.tool === "edit" && this.idxOf.get(`${id}#${p.itemId}`) === i.idx) : void 0;
+      const { item, answer } = this.book.ask(id, {
+        at: nowIso(),
+        trajectoryId: p.itemId,
+        approvalType: isCmd ? "runCommand" : "applyChanges",
+        title: isCmd ? "Run this command?" : "Apply these file changes?",
+        detail: (isCmd ? p.command : changed?.kind === "tool" && changed.detail || p.reason) || p.reason || void 0
+      });
+      this.emit("items", { id, items: [item] });
+      this.emit("conversations");
+      this.emit("approval", { id, idx: item.idx });
+      const allow = await answer;
+      return { decision: allow ? "accept" : "decline" };
+    }
+    if (method.endsWith("requestApproval")) return { decision: "decline" };
+    throw new Error(`Pulsar can't answer ${method}`);
+  }
+  stop() {
+    this.book.denyAll();
+    this.rpc?.stop();
+    this.rpc = null;
+  }
+};
+
+// src/live/agents/acp.ts
+var import_events6 = require("events");
+var import_fs9 = require("fs");
+var import_path9 = require("path");
+var KNOWN_ACP_AGENTS = [
+  { id: "copilot", label: "Copilot CLI", command: "copilot", args: ["--acp"] },
+  { id: "cursor", label: "Cursor", command: "cursor-agent", args: ["acp"] },
+  { id: "goose", label: "Goose", command: "goose", args: ["acp"] },
+  { id: "opencode", label: "OpenCode", command: "opencode", args: ["acp"] },
+  { id: "qwen", label: "Qwen Code", command: "qwen", args: ["--experimental-acp"] },
+  { id: "codex-acp", label: "Codex (ACP)", command: "codex-acp", args: [] }
+];
+function loadAcpConfig(dir) {
+  const file = (0, import_path9.join)(dir, "agents.json");
+  let custom = [];
+  try {
+    custom = (0, import_fs9.existsSync)(file) ? JSON.parse((0, import_fs9.readFileSync)(file, "utf8")) : [];
+  } catch {
+    custom = [];
+  }
+  const byId = new Map(KNOWN_ACP_AGENTS.map((a) => [a.id, a]));
+  for (const a of custom) if (a?.id && a.command) byId.set(a.id, { ...a, label: a.label || a.id, args: a.args ?? [] });
+  return [...byId.values()];
+}
+var toolKind3 = (k) => k === "execute" ? "command" : k === "edit" || k === "delete" || k === "move" ? "edit" : k === "read" ? "view" : k === "search" ? "search" : k === "fetch" ? "web" : "other";
+var toolState = (s) => s === "completed" ? "done" : s === "failed" ? "error" : s === "pending" ? "waiting" : "running";
+var contentText = (c) => Array.isArray(c) ? c.map(contentText).join("") : c?.type === "text" ? c.text : c?.content ? contentText(c.content) : "";
+var AcpProvider = class extends import_events6.EventEmitter {
+  constructor(agent, storeDir) {
+    super();
+    this.agent = agent;
+    this.id = `acp:${agent.id}`;
+    this.label = agent.label;
+    this.prefix = `acp:${agent.id}:`;
+    this.file = (0, import_path9.join)(storeDir, "acp-sessions.json");
+    this.sessions = this.readAll()[agent.id] ?? {};
+  }
+  kind = "acp";
+  id;
+  label;
+  prefix;
+  rpc = null;
+  ready = null;
+  book = new ItemBook();
+  sessions;
+  file;
+  running = /* @__PURE__ */ new Set();
+  loaded = /* @__PURE__ */ new Set();
+  /** ACP tool call id -> our index; the streaming agent message index per conversation. */
+  idxOf = /* @__PURE__ */ new Map();
+  streaming = /* @__PURE__ */ new Map();
+  readAll() {
+    try {
+      return (0, import_fs9.existsSync)(this.file) ? JSON.parse((0, import_fs9.readFileSync)(this.file, "utf8")) : {};
+    } catch {
+      return {};
+    }
+  }
+  save() {
+    const all = this.readAll();
+    all[this.agent.id] = this.sessions;
+    (0, import_fs9.writeFileSync)(this.file, JSON.stringify(all, null, 2), { mode: 384 });
+  }
+  available() {
+    return commandExists(this.agent.command);
+  }
+  async conn() {
+    if (this.rpc?.running && this.ready) return { rpc: this.rpc, ...await this.ready };
+    const rpc = new StdioRpc(this.agent.command, this.agent.args, { label: this.label });
+    this.rpc = rpc;
+    rpc.onRequest = (m, p) => this.onAgentRequest(m, p);
+    rpc.on("notification", (m, p) => m === "session/update" && this.onUpdate(p));
+    rpc.on("exit", () => {
+      this.ready = null;
+      this.loaded.clear();
+      this.running.clear();
+      this.book.denyAll();
+      this.emit("conversations");
+    });
+    rpc.start();
+    this.ready = rpc.request("initialize", { protocolVersion: 1, clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false } }, 6e4).then((r) => ({ loadSession: !!r?.agentCapabilities?.loadSession }));
+    return { rpc, ...await this.ready };
+  }
+  sid(id) {
+    return id.slice(this.prefix.length);
+  }
+  summary(s) {
+    const id = this.prefix + s.sessionId;
+    return {
+      id,
+      agent: "acp",
+      agentLabel: this.label,
+      title: s.title,
+      status: this.running.has(id) ? "running" : "idle",
+      stepCount: this.book.list(id).length,
+      updatedAt: s.updatedAt,
+      createdAt: s.createdAt,
+      workspacePath: s.cwd,
+      workspaceName: (0, import_path9.basename)(s.cwd),
+      repo: null,
+      branch: null,
+      pendingApprovals: this.book.pending(id)
+    };
+  }
+  async conversations() {
+    return Object.values(this.sessions).map((s) => this.summary(s)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+  async open(id) {
+    const rec = this.sessions[this.sid(id)];
+    if (!rec) throw new Error("Unknown conversation");
+    if (!this.loaded.has(id) && !this.book.has(id)) {
+      const { rpc, loadSession } = await this.conn();
+      if (loadSession) {
+        this.book.reset(id, []);
+        await rpc.request("session/load", { sessionId: rec.sessionId, cwd: rec.cwd, mcpServers: [] }, 12e4).catch(() => void 0);
+        this.loaded.add(id);
+      }
+    }
+    return { items: this.book.list(id), firstIdx: 0, hasMore: false, conversation: this.summary(rec) };
+  }
+  close() {
+  }
+  touch(id, title) {
+    const rec = this.sessions[this.sid(id)];
+    if (!rec) return;
+    rec.updatedAt = nowIso();
+    if (title && rec.title === "New conversation") rec.title = title.slice(0, 80);
+    this.save();
+  }
+  async prompt(id, text) {
+    const { rpc } = await this.conn();
+    const user = this.book.put(id, { kind: "user", at: nowIso(), text, images: 0 });
+    this.streaming.delete(id);
+    this.running.add(id);
+    this.touch(id, text);
+    this.emit("items", { id, items: [user] });
+    this.emit("conversations");
+    void rpc.request("session/prompt", { sessionId: this.sid(id), prompt: [{ type: "text", text }] }, 24 * 3600 * 1e3).catch((e) => this.emit("items", { id, items: [this.book.put(id, { kind: "error", at: nowIso(), text: e.message })] })).finally(() => {
+      this.running.delete(id);
+      this.streaming.delete(id);
+      this.touch(id);
+      this.emit("conversations");
+      this.emit("finished", { id });
+    });
+  }
+  async send(id, text) {
+    if (!this.sessions[this.sid(id)]) throw new Error("Unknown conversation");
+    await this.open(id);
+    await this.prompt(id, text);
+  }
+  async start(workspacePath, text) {
+    const { rpc } = await this.conn();
+    const r = await rpc.request("session/new", { cwd: workspacePath, mcpServers: [] }, 12e4);
+    const at = nowIso();
+    this.sessions[r.sessionId] = { sessionId: r.sessionId, cwd: workspacePath, title: "New conversation", createdAt: at, updatedAt: at };
+    this.save();
+    const id = this.prefix + r.sessionId;
+    this.book.reset(id, []);
+    this.loaded.add(id);
+    await this.prompt(id, text);
+    return { id };
+  }
+  async cancel(id) {
+    const { rpc } = await this.conn();
+    rpc.notify("session/cancel", { sessionId: this.sid(id) });
+    this.book.denyAll(id);
+  }
+  async respondApproval(id, idx, allow) {
+    const resolved = this.book.answer(id, idx, allow);
+    if (!resolved) throw new Error("This approval is no longer pending");
+    this.emit("items", { id, items: [resolved] });
+    this.emit("conversations");
+  }
+  approvalItem(id, idx) {
+    const i = this.book.get(id, idx);
+    return i?.kind === "approval" ? i : null;
+  }
+  // ---------- agent -> us ----------
+  onUpdate(p) {
+    const id = this.prefix + p?.sessionId;
+    const u = p?.update;
+    if (!u || !this.sessions[p.sessionId]) return;
+    const changed = [];
+    switch (u.sessionUpdate) {
+      case "user_message_chunk": {
+        if (this.running.has(id)) break;
+        changed.push(this.book.put(id, { kind: "user", at: nowIso(), text: contentText(u.content), images: 0 }));
+        this.streaming.delete(id);
+        break;
+      }
+      case "agent_message_chunk": {
+        const idx = this.streaming.get(id);
+        const prev = idx !== void 0 ? this.book.get(id, idx) : void 0;
+        const text = (prev?.kind === "agent" ? prev.text : "") + contentText(u.content);
+        const item = this.book.put(id, { kind: "agent", at: nowIso(), text, ...idx !== void 0 ? { idx } : {} });
+        this.streaming.set(id, item.idx);
+        changed.push(item);
+        break;
+      }
+      case "tool_call":
+      case "tool_call_update": {
+        this.streaming.delete(id);
+        const k = `${id}#${u.toolCallId}`;
+        const idx = this.idxOf.get(k);
+        const prev = idx !== void 0 ? this.book.get(id, idx) : void 0;
+        const out = contentText(u.content);
+        const item = this.book.put(id, {
+          kind: "tool",
+          at: nowIso(),
+          tool: toolKind3(u.kind ?? (prev?.kind === "tool" ? void 0 : void 0)) ?? "other",
+          title: u.title ?? (prev?.kind === "tool" ? prev.title : "Tool"),
+          detail: tailText(out) ?? (prev?.kind === "tool" ? prev.detail : void 0),
+          status: toolState(u.status ?? (prev?.kind === "tool" ? void 0 : "in_progress")),
+          ...idx !== void 0 ? { idx } : {}
+        });
+        this.idxOf.set(k, item.idx);
+        changed.push(item);
+        break;
+      }
+      case "plan": {
+        this.streaming.delete(id);
+        const steps = (u.entries ?? []).map((e, i) => `${i + 1}. ${e.status === "completed" ? "~~" : ""}${e.content}${e.status === "completed" ? "~~" : ""}`).join("\n");
+        changed.push(this.book.put(id, { kind: "agent", at: nowIso(), text: `**Plan**
+
+${steps}` }));
+        break;
+      }
+      default:
+        return;
+    }
+    if (changed.length) this.emit("items", { id, items: changed });
+  }
+  async onAgentRequest(method, p) {
+    if (method === "session/request_permission") {
+      const id = this.prefix + p.sessionId;
+      const options = p.options ?? [];
+      const tc = p.toolCall ?? {};
+      const raw = tc.rawInput ? typeof tc.rawInput === "string" ? tc.rawInput : tc.rawInput.command ?? JSON.stringify(tc.rawInput) : void 0;
+      const { item, answer } = this.book.ask(id, {
+        at: nowIso(),
+        trajectoryId: tc.toolCallId ?? "",
+        approvalType: tc.kind === "execute" ? "runCommand" : "tool",
+        title: tc.kind === "execute" ? "Run this command?" : `Allow: ${tc.title ?? "this action"}?`,
+        detail: Array.isArray(raw) ? raw.join(" ") : raw ?? tc.title
+      });
+      this.emit("items", { id, items: [item] });
+      this.emit("conversations");
+      this.emit("approval", { id, idx: item.idx });
+      const allow = await answer;
+      const pick = options.find((o) => o.kind === (allow ? "allow_once" : "reject_once")) ?? options.find((o) => o.kind.startsWith(allow ? "allow" : "reject"));
+      return pick ? { outcome: { outcome: "selected", optionId: pick.optionId } } : { outcome: { outcome: "cancelled" } };
+    }
+    throw new Error(`Pulsar does not provide ${method}`);
+  }
+  stop() {
+    this.book.denyAll();
+    this.rpc?.stop();
+    this.rpc = null;
   }
 };
 
@@ -12760,6 +15321,14 @@ var UpdateChecker = class {
 };
 
 // src/live/embed.ts
+async function registerAgents(service, dir) {
+  if (process.env["AGENTDECK_AGENTS"] === "off") return;
+  const candidates = [new CodexProvider(), new ClaudeProvider(dir), ...loadAcpConfig(dir).map((a) => new AcpProvider(a, dir))];
+  for (const p of candidates) {
+    if (await p.available().catch(() => false)) service.addProvider(p);
+  }
+  await service.syncModelApis();
+}
 var DEFAULT_RELAY_URL = process.env["AGENTDECK_DEFAULT_RELAY_URL"] || "wss://agentdeck-relay.finnova.com.au";
 async function startHost(opts = {}) {
   const store = new Store();
@@ -12782,6 +15351,8 @@ async function startHost(opts = {}) {
     throw e;
   }
   service.start();
+  service.governance = new Governance(store.dir);
+  void registerAgents(service, store.dir);
   return {
     store,
     service,
@@ -12839,7 +15410,7 @@ async function start() {
       const other = await localCall("GET", "/api/health").catch(() => null);
       if (!other?.app) throw new Error(`Port ${PORT} is used by another program. Set AGENTDECK_PORT to use a different one.`);
       console.log(`Pulsar ${other.version} is already running (probably inside Antigravity). Standing by\u2026`);
-      while (await localCall("GET", "/api/health").catch(() => null)) await new Promise((r) => setTimeout(r, 2e4));
+      while (await localCall("GET", "/api/health").catch(() => null)) await new Promise((r) => setTimeout(r, 2e3));
     }
   }
   const { store, service, server, port } = started;
@@ -12886,18 +15457,18 @@ function isSea() {
 }
 function entryCommand() {
   if (isSea()) return [process.execPath];
-  return [process.execPath, (0, import_path4.resolve)(process.argv[1])];
+  return [process.execPath, (0, import_path10.resolve)(process.argv[1])];
 }
 function install() {
   const entry = entryCommand();
-  const logDir = (0, import_path4.join)((0, import_os5.homedir)(), ".agentdeck");
-  (0, import_fs5.mkdirSync)(logDir, { recursive: true, mode: 448 });
-  (0, import_fs5.chmodSync)(logDir, 448);
+  const logDir = (0, import_path10.join)((0, import_os8.homedir)(), ".agentdeck");
+  (0, import_fs10.mkdirSync)(logDir, { recursive: true, mode: 448 });
+  (0, import_fs10.chmodSync)(logDir, 448);
   if (process.platform === "darwin") {
-    const plist = (0, import_path4.join)((0, import_os5.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
-    (0, import_fs5.mkdirSync)((0, import_path4.join)((0, import_os5.homedir)(), "Library/LaunchAgents"), { recursive: true });
+    const plist = (0, import_path10.join)((0, import_os8.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
+    (0, import_fs10.mkdirSync)((0, import_path10.join)((0, import_os8.homedir)(), "Library/LaunchAgents"), { recursive: true });
     const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-    (0, import_fs5.writeFileSync)(
+    (0, import_fs10.writeFileSync)(
       plist,
       `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -12907,24 +15478,24 @@ function install() {
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
-  <key>StandardOutPath</key><string>${esc((0, import_path4.join)(logDir, "host.log"))}</string>
-  <key>StandardErrorPath</key><string>${esc((0, import_path4.join)(logDir, "host.log"))}</string>
+  <key>StandardOutPath</key><string>${esc((0, import_path10.join)(logDir, "host.log"))}</string>
+  <key>StandardErrorPath</key><string>${esc((0, import_path10.join)(logDir, "host.log"))}</string>
 </dict></plist>
 `
     );
     try {
-      (0, import_child_process4.execFileSync)("launchctl", ["unload", plist], { stdio: "ignore" });
+      (0, import_child_process7.execFileSync)("launchctl", ["unload", plist], { stdio: "ignore" });
     } catch {
     }
-    (0, import_child_process4.execFileSync)("launchctl", ["load", "-w", plist]);
+    (0, import_child_process7.execFileSync)("launchctl", ["load", "-w", plist]);
     console.log(`Installed. Pulsar host now starts at login.
   Dashboard: http://localhost:${PORT}/
-  Logs: ${(0, import_path4.join)(logDir, "host.log")}`);
+  Logs: ${(0, import_path10.join)(logDir, "host.log")}`);
   } else if (process.platform === "linux") {
-    const dir = (0, import_path4.join)((0, import_os5.homedir)(), ".config/systemd/user");
-    (0, import_fs5.mkdirSync)(dir, { recursive: true });
-    (0, import_fs5.writeFileSync)(
-      (0, import_path4.join)(dir, "agentdeck-host.service"),
+    const dir = (0, import_path10.join)((0, import_os8.homedir)(), ".config/systemd/user");
+    (0, import_fs10.mkdirSync)(dir, { recursive: true });
+    (0, import_fs10.writeFileSync)(
+      (0, import_path10.join)(dir, "agentdeck-host.service"),
       `[Unit]
 Description=Pulsar host
 After=network-online.target
@@ -12938,23 +15509,23 @@ WantedBy=default.target
 `
     );
     try {
-      (0, import_child_process4.execFileSync)("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
-      (0, import_child_process4.execFileSync)("systemctl", ["--user", "enable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
+      (0, import_child_process7.execFileSync)("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
+      (0, import_child_process7.execFileSync)("systemctl", ["--user", "enable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
       console.log(`Installed as a systemd user service.
   Dashboard: http://localhost:${PORT}/`);
     } catch {
-      const log = (0, import_fs5.openSync)((0, import_path4.join)(logDir, "host.log"), "a");
-      (0, import_child_process4.spawn)(entry[0], [...entry.slice(1), "start"], { detached: true, stdio: ["ignore", log, log] }).unref();
+      const log = (0, import_fs10.openSync)((0, import_path10.join)(logDir, "host.log"), "a");
+      (0, import_child_process7.spawn)(entry[0], [...entry.slice(1), "start"], { detached: true, stdio: ["ignore", log, log] }).unref();
       console.log(
         `Pulsar host is running (no systemd user session here, so it won't start by itself after a restart).
   Dashboard: http://localhost:${PORT}/
   Start it again later with: ${entry.map((a) => `"${a}"`).join(" ")} start
-  Logs: ${(0, import_path4.join)(logDir, "host.log")}`
+  Logs: ${(0, import_path10.join)(logDir, "host.log")}`
       );
     }
   } else if (process.platform === "win32") {
-    const startup = (0, import_path4.join)(process.env["APPDATA"] ?? (0, import_os5.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
-    (0, import_fs5.writeFileSync)((0, import_path4.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${entry.map((a) => `""${a}""`).join(" ")} start", 0, False
+    const startup = (0, import_path10.join)(process.env["APPDATA"] ?? (0, import_os8.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
+    (0, import_fs10.writeFileSync)((0, import_path10.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${entry.map((a) => `""${a}""`).join(" ")} start", 0, False
 `);
     console.log(`Installed in your Startup folder. Sign out and back in, or run: agentdeck-host start`);
   } else {
@@ -12963,22 +15534,22 @@ WantedBy=default.target
 }
 function uninstall() {
   if (process.platform === "darwin") {
-    const plist = (0, import_path4.join)((0, import_os5.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
-    if ((0, import_fs5.existsSync)(plist)) {
+    const plist = (0, import_path10.join)((0, import_os8.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
+    if ((0, import_fs10.existsSync)(plist)) {
       try {
-        (0, import_child_process4.execFileSync)("launchctl", ["unload", "-w", plist], { stdio: "ignore" });
+        (0, import_child_process7.execFileSync)("launchctl", ["unload", "-w", plist], { stdio: "ignore" });
       } catch {
       }
-      (0, import_fs5.rmSync)(plist);
+      (0, import_fs10.rmSync)(plist);
     }
   } else if (process.platform === "linux") {
     try {
-      (0, import_child_process4.execFileSync)("systemctl", ["--user", "disable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
+      (0, import_child_process7.execFileSync)("systemctl", ["--user", "disable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
     } catch {
     }
-    (0, import_fs5.rmSync)((0, import_path4.join)((0, import_os5.homedir)(), ".config/systemd/user/agentdeck-host.service"), { force: true });
+    (0, import_fs10.rmSync)((0, import_path10.join)((0, import_os8.homedir)(), ".config/systemd/user/agentdeck-host.service"), { force: true });
   } else if (process.platform === "win32") {
-    (0, import_fs5.rmSync)((0, import_path4.join)(process.env["APPDATA"] ?? (0, import_os5.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup/AgentDeck Host.vbs"), { force: true });
+    (0, import_fs10.rmSync)((0, import_path10.join)(process.env["APPDATA"] ?? (0, import_os8.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup/AgentDeck Host.vbs"), { force: true });
   }
   console.log("Removed the Pulsar login item. Pairings in ~/.agentdeck were kept.");
 }
@@ -13010,8 +15581,8 @@ async function runningVersion() {
 }
 async function setup() {
   if (process.platform !== "win32") throw new Error("setup is for Windows; on a Mac use the Pulsar app, elsewhere run: agentdeck-host install");
-  const dir = (0, import_path4.join)(process.env["LOCALAPPDATA"] ?? (0, import_path4.join)((0, import_os5.homedir)(), "AppData", "Local"), "AgentDeck");
-  const target = (0, import_path4.join)(dir, "AgentDeck.exe");
+  const dir = (0, import_path10.join)(process.env["LOCALAPPDATA"] ?? (0, import_path10.join)((0, import_os8.homedir)(), "AppData", "Local"), "AgentDeck");
+  const target = (0, import_path10.join)(dir, "AgentDeck.exe");
   console.log("Setting up Pulsar\u2026");
   const running = await runningVersion();
   if (running && running !== HOST_VERSION) {
@@ -13020,11 +15591,11 @@ async function setup() {
     for (let i = 0; i < 20 && await runningVersion(); i++) await sleep(500);
   }
   if (running !== HOST_VERSION) {
-    (0, import_fs5.mkdirSync)(dir, { recursive: true });
-    if ((0, import_path4.resolve)(process.execPath).toLowerCase() !== (0, import_path4.resolve)(target).toLowerCase()) {
+    (0, import_fs10.mkdirSync)(dir, { recursive: true });
+    if ((0, import_path10.resolve)(process.execPath).toLowerCase() !== (0, import_path10.resolve)(target).toLowerCase()) {
       for (let i = 0; ; i++) {
         try {
-          (0, import_fs5.copyFileSync)(process.execPath, target);
+          (0, import_fs10.copyFileSync)(process.execPath, target);
           break;
         } catch (e) {
           if (i >= 10) throw new Error(`Could not copy Pulsar to ${dir}: ${e.message}`);
@@ -13032,19 +15603,19 @@ async function setup() {
         }
       }
     }
-    const startup = (0, import_path4.join)(process.env["APPDATA"] ?? (0, import_os5.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
-    (0, import_fs5.mkdirSync)(startup, { recursive: true });
+    const startup = (0, import_path10.join)(process.env["APPDATA"] ?? (0, import_os8.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
+    (0, import_fs10.mkdirSync)(startup, { recursive: true });
     const q = '""';
-    (0, import_fs5.writeFileSync)((0, import_path4.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${q}${target}${q} start", 0, False
+    (0, import_fs10.writeFileSync)((0, import_path10.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${q}${target}${q} start", 0, False
 `);
-    (0, import_child_process4.spawn)(target, ["start"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    (0, import_child_process7.spawn)(target, ["start"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
     for (let i = 0; i < 40 && !await runningVersion(); i++) await sleep(500);
   }
   const now = await runningVersion();
   if (!now) throw new Error('Pulsar did not start. Run "AgentDeck.exe start" in a terminal to see why, or contact support.');
   console.log(`Pulsar ${now} is running and starts with Windows.
   Pair your phone: http://localhost:${PORT}/pair`);
-  if (!process.argv.includes("--no-browser")) (0, import_child_process4.spawn)("cmd", ["/c", "start", "", `http://localhost:${PORT}/pair`], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  if (!process.argv.includes("--no-browser")) (0, import_child_process7.spawn)("cmd", ["/c", "start", "", `http://localhost:${PORT}/pair`], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   await sleep(3e3);
 }
 var commands = { start, pair, status, install, uninstall, doctor, activate, setup };
