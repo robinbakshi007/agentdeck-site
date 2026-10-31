@@ -10851,7 +10851,7 @@ function formatAgentTextForPhone(raw) {
   const out = [];
   let inFence = false;
   let i = 0;
-  const cleanInline = (s) => s.replace(/<br\s*\/?>/gi, " \xB7 ").replace(/\[(`[^`]+`|[^\]]+)\]\((?:file|vscode|antigravity):\/\/[^)]+\)/g, "$1").replace(/\[`([^`]+)`\]\((https?:\/\/[^)]+)\)/g, "[$1]($2)");
+  const cleanInline = (s) => s.replace(/<br\s*\/?>/gi, " \xB7 ").replace(/<plugin-card\s+catalog-id="([^"]+)"\s*><\/plugin-card>/gi, "\u2022 **Antigravity Desktop Plugin:** `$1` *(open on Mac to install)*").replace(/\[(`[^`]+`|[^\]]+)\]\((?:file|vscode|antigravity):\/\/[^)]+\)/g, "$1").replace(/\[`([^`]+)`\]\((https?:\/\/[^)]+)\)/g, "[$1]($2)");
   const splitCells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => cleanInline(c.trim()));
   const isSeparatorRow = (line) => /^\|[\s:|-]+\|$/.test(line.trim());
   while (i < lines.length) {
