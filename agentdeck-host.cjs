@@ -10632,17 +10632,28 @@ async function discoverLanguageServers() {
       const hubPort = Number(arg(p.command, "hub-port") ?? 0);
       const discovered = await listeningPorts(p.pid);
       const ports = hubPort > 0 ? [hubPort, ...discovered.filter((x) => x !== hubPort)] : discovered;
+      const bin = p.command.replace(/^"([^"]+)".*$/, "$1").split(" --")[0].trim();
+      const desktopGui = /[\\/]bin[\\/]language_server(_[a-z0-9_]+)?(\.exe)?$/i.test(bin);
       for (const port of ports) {
         try {
           await connectCall({ port, csrf }, "GetUserStatus", {}, 3e3);
-          found.push({ pid: p.pid, port, csrf, workspaceId: arg(p.command, "workspace_id"), primary: !/--parent_pipe_path[= ]/.test(p.command) && !arg(p.command, "workspace_id") });
+          found.push({
+            pid: p.pid,
+            port,
+            csrf,
+            workspaceId: arg(p.command, "workspace_id"),
+            primary: !/--parent_pipe_path[= ]/.test(p.command) && !arg(p.command, "workspace_id"),
+            desktopGui
+          });
           return;
         } catch {
         }
       }
     })
   );
-  return found.sort((a, b) => Number(!!b.primary) - Number(!!a.primary) || Number(!!a.workspaceId) - Number(!!b.workspaceId));
+  return found.sort(
+    (a, b) => Number(!!b.primary) - Number(!!a.primary) || Number(!!b.desktopGui) - Number(!!a.desktopGui) || Number(!!a.workspaceId) - Number(!!b.workspaceId)
+  );
 }
 var AntigravityBridge = class {
   constructor(discover = discoverLanguageServers) {
@@ -10769,7 +10780,99 @@ var AntigravityBridge = class {
   }
   /** Opens the conversation in Antigravity's Agent panel on the Mac. */
   async focus(cascadeId) {
-    await this.callOwned(cascadeId, "SmartFocusConversation", { cascadeId }, 1e4);
+    try {
+      await this.callOwned(cascadeId, "SmartFocusConversation", { cascadeId }, 5e3);
+      return;
+    } catch (e) {
+      const focused = await this.focusAntigravity2Window(cascadeId);
+      if (!focused) throw e;
+    }
+  }
+  async focusAntigravity2Window(cascadeId) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cascadeId)) return false;
+    try {
+      const candidates = [
+        (0, import_path.join)((0, import_os.homedir)(), "Library/Application Support/Antigravity/DevToolsActivePort"),
+        (0, import_path.join)((0, import_os.homedir)(), ".config/Antigravity/DevToolsActivePort"),
+        process.env.APPDATA ? (0, import_path.join)(process.env.APPDATA, "Antigravity/DevToolsActivePort") : ""
+      ].filter(Boolean);
+      let port = 0;
+      for (const p of candidates) {
+        try {
+          const line = (0, import_fs.readFileSync)(p, "utf8").split(/\r?\n/)[0]?.trim();
+          if (line && /^\d+$/.test(line)) {
+            port = Number(line);
+            break;
+          }
+        } catch {
+        }
+      }
+      if (!port) return false;
+      const targets = await new Promise((resolve3, reject) => {
+        const req = (0, import_http.request)({ host: "127.0.0.1", port, path: "/json/list", method: "GET", timeout: 2e3 }, (res) => {
+          const chunks = [];
+          res.on("data", (c) => chunks.push(c));
+          res.on("end", () => {
+            try {
+              resolve3(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+        req.on("error", reject);
+        req.on("timeout", () => req.destroy(new Error("timeout")));
+        req.end();
+      });
+      const page = targets.find((t) => t?.type === "page" && typeof t?.webSocketDebuggerUrl === "string" && /\/c\/|127\.0\.0\.1/.test(String(t.url ?? "")));
+      if (!page?.webSocketDebuggerUrl) return false;
+      const WS = globalThis.WebSocket;
+      if (!WS) return false;
+      return await new Promise((resolve3) => {
+        const ws = new WS(page.webSocketDebuggerUrl);
+        const timer = setTimeout(() => {
+          try {
+            ws.close();
+          } catch {
+          }
+          resolve3(false);
+        }, 2500);
+        ws.onopen = () => {
+          const targetPath = `/c/${cascadeId}`;
+          ws.send(
+            JSON.stringify({
+              id: 1,
+              method: "Runtime.evaluate",
+              params: {
+                expression: `(function(tp){
+                  if (location.pathname === tp) return true;
+                  if (window.__TSR_ROUTER__ && typeof window.__TSR_ROUTER__.navigate === "function") {
+                    window.__TSR_ROUTER__.navigate({ to: tp });
+                    return true;
+                  }
+                  return false;
+                })(${JSON.stringify(targetPath)})`,
+                returnByValue: true
+              }
+            })
+          );
+        };
+        ws.onmessage = () => {
+          clearTimeout(timer);
+          try {
+            ws.close();
+          } catch {
+          }
+          resolve3(true);
+        };
+        ws.onerror = () => {
+          clearTimeout(timer);
+          resolve3(false);
+        };
+      });
+    } catch {
+      return false;
+    }
   }
   async getSteps(cascadeId, stepOffset) {
     const res = await this.callOwned(cascadeId, "GetCascadeTrajectorySteps", { cascadeId, stepOffset }, 6e4);
@@ -10795,6 +10898,7 @@ var AntigravityBridge = class {
         });
         if (res.cascadeId) {
           this.owner.set(res.cascadeId, server);
+          void this.focus(res.cascadeId).catch(() => void 0);
           return res.cascadeId;
         }
       } catch (e) {
@@ -10804,12 +10908,23 @@ var AntigravityBridge = class {
     throw lastErr;
   }
   async sendMessage(cascadeId, text, opts) {
+    const servers = await this.ensureServers();
+    const desktop = servers.find((s) => s.desktopGui);
     let owner = this.owner.get(cascadeId);
     if (!owner) {
       await this.listConversations();
       owner = this.owner.get(cascadeId);
     }
+    if (desktop && owner && owner.pid !== desktop.pid) {
+      try {
+        await connectCall(desktop, "LoadTrajectory", { cascadeId }, 1e4);
+        owner = desktop;
+        this.owner.set(cascadeId, desktop);
+      } catch {
+      }
+    }
     if (!owner) throw new AntigravityError(`Conversation ${cascadeId} is not loaded in Antigravity`, "not_found");
+    void this.focus(cascadeId).catch(() => void 0);
     const body = {
       cascadeId,
       items: [{ text }],
