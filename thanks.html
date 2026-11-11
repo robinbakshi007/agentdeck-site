@@ -23,7 +23,7 @@
     <p class="muted small">Installed with Terminal? Run <code id="cmd">agentdeck-host activate &lt;key&gt;</code></p></div></div>
   <div class="step"><span class="num">3</span><div><h2>Pair your phone</h2>
     <p>Install the free app, then scan the pairing code your computer shows.</p>
-    <p class="stores"><a href="/download#android">Android</a><a href="/download#iphone">iPhone &amp; iPad</a></p></div></div>
+    <p class="stores"><a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776"> iPhone &amp; iPad (App Store)</a><a href="/download#android">🤖 Android</a></p></div></div>
 </section>
 
 <p class="center muted small"><a id="manage" href="/account">Manage or cancel your plan</a> · <a href="/help">Setup help</a> · <a href="/support">Support</a></p>
@@ -61,7 +61,7 @@ function show(r){
   $('cmd').textContent='node ~/.agentdeck/bin/agentdeck-host.cjs activate '+r.key;
   $('manage').href='/account#key='+encodeURIComponent(r.key);
   if(r.plan==='trial'){
-    $('title').textContent='Your 30-day free trial has started';
+    $('title').textContent='Your 90-day free trial has started';
     $('sub').textContent='Nothing charged today.'+(r.trialEnd?' Your trial runs until '+date(r.trialEnd)+', and we\'ll email you 3 days before it ends.':' We\'ll email you 3 days before it ends.');
   }
 }

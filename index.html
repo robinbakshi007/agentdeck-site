@@ -1,20 +1,130 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pulsar</title><meta name="description" content="Control the Antigravity coding agent on your computer from your phone.">
-<link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css"></head><body><main>
-<nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
-<h1>Your AI coding agent, in your pocket</h1>
-<p class="muted">Pulsar connects your phone to the Antigravity agent running on your computer. Walk away from your desk and stay in control.</p>
-<p class="soon"><b>Get the phone app now:</b> <a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776"><b>iPhone &amp; iPad on the App Store</b></a> · <a href="/download#android"><b>Android</b></a>.</p>
-<div class="card"><ul>
-<li>See every agent conversation live, across all your projects</li>
-<li>Send prompts, attach screenshots, or dictate by voice</li>
-<li>Approve commands with Face ID or fingerprint</li>
-<li>Review real code changes and diffs</li>
-<li>Get a notification when the agent needs you or finishes</li>
-<li>End-to-end encrypted over Wi-Fi or cellular</li>
-</ul></div>
-<h2>Get started</h2>
-<ol><li><a href="/pricing">Choose a Pulsar Pro plan</a>: early access from US$0.99/month for our first 15 customers, or lifetime.</li><li><a href="/download">Install Pulsar</a> (inside Antigravity, or the Mac/Windows app) and enter your license key.</li><li>Install the free Pulsar app on your iPhone or Android phone and scan the code it shows. It then works from anywhere.</li></ol>
-<footer>Pulsar is an independent product by Finnova and is not affiliated with, endorsed by, or sponsored by Google or Antigravity.</footer>
+<title>Pulsar — Control Your AI Coding Agent From Your Phone</title>
+<meta name="description" content="Control the Antigravity, Codex, and Claude Code agents on your computer from your iPhone, iPad, or Android phone. Free for 90 days.">
+<link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
+<style>
+.hero{display:grid;grid-template-columns:1.2fr .8fr;gap:48px;align-items:center;margin:12px 0 64px}
+.hl{color:var(--accent)}
+.lead{font-size:19px;color:var(--muted);margin:0 0 26px;max-width:34em}
+.hero-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.store-strip{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:20px;font-size:14px;color:var(--muted)}
+.store-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--border);color:var(--text);text-decoration:none;font-weight:600;font-size:13px}
+.store-pill:hover{border-color:var(--accent);color:var(--accent)}
+.phone{justify-self:center;padding:10px;background:#111;border-radius:38px;box-shadow:0 30px 60px rgba(0,0,0,.18),0 0 0 1px var(--border);transform:rotate(1.5deg)}
+.phone img{display:block;width:255px;height:auto;border-radius:30px}
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:20px 0 60px}
+.feature{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--shadow)}
+.feature-icon{width:38px;height:38px;border-radius:10px;background:color-mix(in srgb,var(--accent) 12%,transparent);display:grid;place-items:center;margin-bottom:12px}
+.feature-icon svg{width:22px;height:22px;fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.feature h3{margin:0 0 6px;font-size:17px}
+.feature p{margin:0;font-size:15px;color:var(--muted)}
+.steps-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:18px 0 56px}
+.step-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}
+.step-num{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:15px;display:grid;place-items:center}
+.step-card h3{margin:4px 0 2px}
+.step-card p{margin:0;font-size:15px;color:var(--muted)}
+.cta-banner{background:var(--surface);border:2px solid var(--accent);border-radius:20px;padding:36px 28px;display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;box-shadow:var(--shadow)}
+.cta-banner h2{margin:0 0 6px;font-size:26px}
+.cta-banner p{margin:0;color:var(--muted)}
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr;text-align:center;gap:32px}
+  .lead{margin-left:auto;margin-right:auto}
+  .hero-actions,.store-strip{justify-content:center}
+  .phone{transform:none}
+  .features,.steps-grid{grid-template-columns:1fr}
+  .cta-banner{text-align:center;justify-content:center}
+}
+</style></head><body><main>
+<nav><a class="brand" href="/"><img src="/logo.png" alt="" width="24" height="24">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+
+<section class="hero">
+  <div>
+    <span class="eyebrow">Now Live on the App Store · 90 Days Free</span>
+    <h1>Your AI coding agent, <span class="hl">in your pocket.</span></h1>
+    <p class="lead">Pulsar connects your iPhone, iPad, or Android phone to the Antigravity, Codex, and Claude Code agents running on your computer. Walk away from your desk and stay in full control.</p>
+    <div class="hero-actions">
+      <a class="btn" href="/early-access">Start 90-day free trial</a>
+      <a class="btn btn-outline" href="/download">Download apps &amp; extension</a>
+    </div>
+    <div class="store-strip">
+      <span>Get the free phone app:</span>
+      <a class="store-pill" href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776"> iPhone &amp; iPad (App Store)</a>
+      <a class="store-pill" href="/download#android">🤖 Android APK / Beta</a>
+      <a class="store-pill" href="https://open-vsx.org/extension/RobinBakshi/agentdeck">⚡ Antigravity Extension</a>
+    </div>
+  </div>
+  <div class="phone" aria-hidden="true">
+    <picture>
+      <source srcset="/phone-dark.jpg" media="(prefers-color-scheme: dark)">
+      <img src="/phone-approve.jpg" alt="Pulsar mobile app showing live agent conversation and approval" width="255" height="510">
+    </picture>
+  </div>
+</section>
+
+<h2>Everything your agent needs while you're away</h2>
+<section class="features">
+  <div class="feature">
+    <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div>
+    <h3>Live agent steps &amp; multi-window</h3>
+    <p>Follow every step across all your open Antigravity projects, Codex sessions, and Claude Code terminals in real time.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+    <h3>Face ID &amp; lock-screen approvals</h3>
+    <p>Approve or deny terminal commands with Face ID, Touch ID, or fingerprint — with automatic risk badges and smart auto-approve.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+    <h3>Prompts, screenshots &amp; voice</h3>
+    <p>Send the next instruction, 1-tap paste screenshots from your clipboard, or dictate prompts by voice from anywhere.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon"><svg viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/></svg></div>
+    <h3>Code diffs &amp; 1-tap Git actions</h3>
+    <p>Inspect file-by-file diffs, revert hunks, commit &amp; push, stash, or open a pull request straight from your phone.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+    <h3>Live localhost preview tunnel</h3>
+    <p>Preview and tap through <code>localhost:3000</code>, <code>5173</code>, or <code>8080</code> dev servers running on your computer right on your phone.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+    <h3>End-to-end encrypted anywhere</h3>
+    <p>Works over home Wi-Fi or mobile data. Every prompt, diff, and command is encrypted between your phone and computer.</p>
+  </div>
+</section>
+
+<h2>Up and running in 2 minutes</h2>
+<section class="steps-grid">
+  <div class="step-card">
+    <span class="step-num">1</span>
+    <h3>Start your 90-day free trial</h3>
+    <p><a href="/early-access">Claim your free 90-day trial</a> (US$0.00 today, then US$0.99/month per computer) or <a href="/pricing">pick a plan</a>. Your license key appears immediately.</p>
+  </div>
+  <div class="step-card">
+    <span class="step-num">2</span>
+    <h3>Install in Antigravity or Mac/PC</h3>
+    <p>Search <b>Pulsar</b> in Antigravity Extensions (<a href="https://open-vsx.org/extension/RobinBakshi/agentdeck">Open VSX</a> / <a href="https://marketplace.visualstudio.com/items?itemName=RobinBakshi.pulsar-agent-remote">VS Code Marketplace</a>) or <a href="/download">download the desktop app</a>.</p>
+  </div>
+  <div class="step-card">
+    <span class="step-num">3</span>
+    <h3>Scan the code on your phone</h3>
+    <p>Download Pulsar on the <a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776">App Store (iPhone &amp; iPad)</a> or <a href="/download#android">Android</a>, scan the QR code, and you're connected from anywhere.</p>
+  </div>
+</section>
+
+<section class="cta-banner">
+  <div>
+    <h2>Try Pulsar Pro free for 90 days</h2>
+    <p>US$0.00 today for our first 100 early-access members, then US$0.99/month per computer. Cancel in one click any time.</p>
+  </div>
+  <a class="btn" href="/early-access">Start 90-day free trial →</a>
+</section>
+
+<footer>
+  <span>Pulsar is an independent product by Finnova and is not affiliated with, endorsed by, or sponsored by Google or Antigravity.</span>
+  <span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/support">Support</a></span>
+</footer>
 </main></body></html>

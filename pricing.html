@@ -1,45 +1,167 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Pulsar Pricing</title><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css"></head><body><main>
-<nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
-<h1>Pulsar Pro</h1>
-<p class="muted">One license covers Pulsar on up to 3 of your computers, the free phone apps on iPhone, iPad and Android, and remote access from anywhere.</p>
-<p class="soon"><b>Get the phone app now:</b> <a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776"><b>iPhone &amp; iPad on the App Store</b></a> · <a href="/download#android"><b>Android</b></a>.</p>
+<title>Pulsar Pro Pricing — 90 Days Free</title>
+<meta name="description" content="Try Pulsar Pro free for 90 days (US$0 today), then US$0.99/month. Control Antigravity, Codex, and Claude Code from your iPhone, iPad, or Android.">
+<link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
+<style>
+[hidden]{display:none!important}
+.pricing-header{text-align:center;max-width:680px;margin:0 auto 32px}
+.pricing-header p{font-size:18px;margin:0}
+.trial-hero{
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,var(--surface)),var(--surface));
+  border:2px solid var(--accent);
+  border-radius:20px;
+  padding:28px 32px;
+  margin:0 0 28px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:24px;
+  flex-wrap:wrap;
+  box-shadow:var(--shadow);
+}
+.trial-hero h2{margin:4px 0 6px;font-size:26px}
+.trial-hero p{margin:0;color:var(--muted);font-size:16px;max-width:42em}
+.trial-badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:13px;font-weight:700;color:var(--accent)}
+.trial-badges span{background:color-mix(in srgb,var(--accent) 12%,transparent);padding:4px 10px;border-radius:999px}
+.plans-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin:0 0 24px}
+.plan-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:26px 24px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  box-shadow:var(--shadow);
+  position:relative;
+}
+.plan-card.featured{border:2px solid var(--accent)}
+.plan-tag{
+  position:absolute;
+  top:-12px;
+  right:20px;
+  background:var(--accent);
+  color:#fff;
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  padding:3px 10px;
+  border-radius:999px;
+}
+.plan-card h2{margin:0;font-size:21px}
+.price-line{display:flex;align-items:baseline;gap:6px;margin:4px 0}
+.big{font-size:38px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.plan-desc{margin:0 0 12px;font-size:14.5px;color:var(--muted);min-height:44px}
+.plan-perks{list-style:none;padding:0;margin:0 0 18px;border-top:1px solid var(--border);padding-top:14px;display:grid;gap:8px;font-size:14.5px}
+.plan-perks li::before{content:"✓ ";color:var(--ok);font-weight:800;margin-right:4px}
+.plan-card .buy{margin-top:auto;width:100%;text-align:center}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:36px 0}
+.info-card{margin:0}
+.info-card h2{margin:0 0 12px;font-size:20px}
+.info-card ul,.info-card ol{margin:0;padding-left:20px;display:grid;gap:8px;font-size:15.5px}
+@media (max-width:860px){
+  .plans-grid,.info-grid{grid-template-columns:1fr}
+  .trial-hero{text-align:center;justify-content:center}
+  .trial-badges{justify-content:center}
+}
+</style></head><body><main>
+<nav><a class="brand" href="/"><img src="/logo.png" alt="" width="24" height="24">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+
+<div class="pricing-header">
+  <span class="eyebrow" id="founding">Early Access · <span id="spots">15 founding spots available</span></span>
+  <h1>Pulsar Pro</h1>
+  <p class="muted">One license covers Pulsar on up to 3 of your computers, the free companion apps on <a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776">iPhone &amp; iPad (App Store)</a> and <a href="/download#android">Android</a>, and encrypted remote access from anywhere.</p>
+</div>
+
 <p id="checkout-error" hidden class="card" style="border-color:#DC2626">Checkout couldn't start just now. Please try again in a minute, or <a href="/support">contact support</a>.</p>
-<p class="card" style="border-color:var(--accent);margin-bottom:14px"><b>New: try it free for 90 days (3 months).</b> The first 100 people get a 90-day free trial (US$0 today, cancel any time), then US$0.99/month per computer. <a href="/early-access"><b>Start your free trial</b></a></p>
-<div id="founding" class="card" style="border-color:var(--accent);margin-bottom:14px"><b>Early access:</b> our first 15 customers get Pulsar Pro for US$0.99/month, or lifetime for US$29.99 once + US$0.99/month (prices exclude GST). <span id="spots">Checking spots…</span></div>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
-  <div class="card" style="display:flex;flex-direction:column;gap:6px;margin:0">
-    <h2 style="margin:0">Monthly</h2>
-    <p style="margin:0"><span class="big" id="m-price">US$0.99</span> <span class="muted">/month</span></p>
-    <p class="muted" id="m-note" style="margin:0;font-size:14px">Founding price, kept for as long as you stay subscribed. Then US$2.99/month for new customers.</p>
-    <a class="buy" data-plan="monthly" href="https://agentdeck-billing.finnova.com.au/checkout?plan=monthly" style="display:block;text-align:center;background:var(--accent);color:#fff;text-decoration:none;border-radius:8px;padding:11px 16px;font-weight:700;margin-top:auto">Choose monthly</a>
+
+<section class="trial-hero">
+  <div>
+    <span class="eyebrow" style="margin-bottom:6px">90-Day Free Trial</span>
+    <h2>Try Pulsar Pro free for 3 months (90 days)</h2>
+    <p>Pay <b>US$0.00 today</b>. Get your license key immediately, pair your iPhone or Android phone, and only pay US$0.99/month per computer after 90 days if you decide to stay.</p>
+    <div class="trial-badges">
+      <span>✓ US$0.00 charged today</span>
+      <span>✓ Reminder email 3 days before day 90</span>
+      <span>✓ 1-click cancel any time</span>
+    </div>
   </div>
-  <div class="card" style="display:flex;flex-direction:column;gap:6px;margin:0">
-    <h2 style="margin:0">Annual</h2>
-    <p style="margin:0"><span class="big" id="a-price">US$7.99</span> <span class="muted">/year</span></p>
-    <p class="muted" style="margin:0;font-size:14px">Pay once a year. Renews automatically; cancel any time.</p>
-    <a class="buy" data-plan="annual" href="https://agentdeck-billing.finnova.com.au/checkout?plan=annual" style="display:block;text-align:center;background:var(--accent);color:#fff;text-decoration:none;border-radius:8px;padding:11px 16px;font-weight:700;margin-top:auto">Choose annual</a>
+  <a class="btn" href="https://agentdeck-billing.finnova.com.au/checkout?plan=trial">Start 90-day free trial →</a>
+</section>
+
+<div class="plans-grid">
+  <div class="plan-card featured">
+    <span class="plan-tag">Most Popular</span>
+    <h2>Monthly</h2>
+    <div class="price-line"><span class="big" id="m-price">US$0.99</span> <span class="muted">/month</span></div>
+    <p class="plan-desc" id="m-note">Founding price, kept for as long as you stay subscribed. Then US$2.99/month for new customers.</p>
+    <ul class="plan-perks">
+      <li>Up to 3 computers (Mac, Windows, Linux)</li>
+      <li>Unlimited iPhone, iPad &amp; Android devices</li>
+      <li>Remote relay access on mobile data &amp; Wi-Fi</li>
+      <li>Cancel any time in one click</li>
+    </ul>
+    <a class="btn buy" data-plan="monthly" href="https://agentdeck-billing.finnova.com.au/checkout?plan=monthly">Choose monthly</a>
   </div>
-  <div class="card" style="display:flex;flex-direction:column;gap:6px;margin:0">
-    <h2 style="margin:0">Lifetime</h2>
-    <p style="margin:0"><span class="big" id="l-price">US$29.99</span> <span class="muted" id="l-unit">once + US$0.99/month</span></p>
-    <p class="muted" id="l-note" style="margin:0;font-size:14px">Founding price (RRP US$99 once). Includes every future update.</p>
-    <a class="buy" data-plan="lifetime" href="https://agentdeck-billing.finnova.com.au/checkout?plan=lifetime" style="display:block;text-align:center;background:var(--accent);color:#fff;text-decoration:none;border-radius:8px;padding:11px 16px;font-weight:700;margin-top:auto">Choose lifetime</a>
+
+  <div class="plan-card">
+    <h2>Annual</h2>
+    <div class="price-line"><span class="big" id="a-price">US$7.99</span> <span class="muted">/year</span></div>
+    <p class="plan-desc">Pay once a year (save 33% vs founding monthly). Renews automatically; cancel any time.</p>
+    <ul class="plan-perks">
+      <li>Up to 3 computers (Mac, Windows, Linux)</li>
+      <li>Unlimited iPhone, iPad &amp; Android devices</li>
+      <li>Remote relay access on mobile data &amp; Wi-Fi</li>
+      <li>12 months of updates &amp; priority support</li>
+    </ul>
+    <a class="btn btn-outline buy" data-plan="annual" href="https://agentdeck-billing.finnova.com.au/checkout?plan=annual">Choose annual</a>
+  </div>
+
+  <div class="plan-card">
+    <h2>Lifetime</h2>
+    <div class="price-line"><span class="big" id="l-price">US$29.99</span> <span class="muted" id="l-unit">once + US$0.99/mo</span></div>
+    <p class="plan-desc" id="l-note">Founding price (RRP US$99 once). Includes every future update across up to 3 computers.</p>
+    <ul class="plan-perks">
+      <li>Up to 3 computers included</li>
+      <li>Unlimited iPhone, iPad &amp; Android devices</li>
+      <li>Every future Pulsar 1.x &amp; 2.x update</li>
+      <li>Locked-in founding relay rate</li>
+    </ul>
+    <a class="btn btn-outline buy" data-plan="lifetime" href="https://agentdeck-billing.finnova.com.au/checkout?plan=lifetime">Choose lifetime</a>
   </div>
 </div>
-<p class="muted" style="font-size:14px;margin-top:14px">All prices in US dollars, excluding GST. Australian customers pay 10% GST on top, shown at checkout. Secure checkout by Stripe; cancel any time from your <a href="/account">account page</a> (you keep access until the end of the paid period).</p>
-<h2>What you get</h2>
-<ul>
-  <li>Live view of every Antigravity conversation from your phone</li>
-  <li>Send prompts, photos and voice; start new tasks</li>
-  <li>Approve commands with Face ID, fingerprint or PIN, even straight from a notification</li>
-  <li>Code changes and diffs, push alerts, end-to-end encrypted connection from anywhere</li>
-</ul>
-<h2>How it works</h2>
-<ol><li>Choose a plan. Your license key appears straight away and is printed on your invoices.</li><li><a href="/download">Install Pulsar</a> (inside Antigravity, or the Mac/Windows app) and enter the key.</li><li>Install the free Pulsar app on your phone and scan the pairing code.</li></ol>
-<p class="muted" style="font-size:14px">Lost your license key? It's on the Pulsar dashboard of any computer you activated, and on your invoices. Otherwise <a href="/support">contact support</a> with your billing email.</p>
-<style>.big{font-size:30px;font-weight:800}</style>
+
+<p class="muted" style="font-size:14px;text-align:center;margin:12px 0 36px">All prices in US dollars, excluding GST. Australian customers pay 10% GST at checkout. Secure checkout by Stripe (Card, Apple Pay, Google Pay, Link); manage or cancel any time from your <a href="/account">account page</a>.</p>
+
+<div class="info-grid">
+  <div class="card info-card">
+    <h2>What's included in every plan</h2>
+    <ul>
+      <li>Live view of every Antigravity, Codex, and Claude Code conversation</li>
+      <li>Send prompts, clipboard screenshots, and voice notes; start new tasks</li>
+      <li>Approve commands with Face ID, Touch ID, fingerprint, or PIN</li>
+      <li>Full code diffs, 1-tap Git actions, and localhost preview tunnel</li>
+      <li>End-to-end encrypted connection over Wi-Fi or cellular</li>
+    </ul>
+  </div>
+  <div class="card info-card">
+    <h2>How activation works</h2>
+    <ol>
+      <li><b>Start your 90-day trial or choose a plan:</b> Your <code>ADK-XXXX-XXXX-XXXX-XXXX</code> license key is shown immediately and emailed to you.</li>
+      <li><b>Activate on your computer:</b> Click <b>Pulsar: activate license</b> in the Antigravity status bar (or paste it in the Mac/Windows app).</li>
+      <li><b>Pair your phone:</b> Download Pulsar on the <a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776">App Store</a> or <a href="/download#android">Android</a> and scan the pairing QR code.</li>
+    </ol>
+    <p class="muted" style="font-size:13.5px;margin:12px 0 0">Lost your license key? Check your welcome email, your <a href="/account">account page</a>, or <a href="/support">contact support</a>.</p>
+  </div>
+</div>
+
+<footer>
+  <span>Pulsar is an independent product by Finnova and is not affiliated with Google or Antigravity.</span>
+  <span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/support">Support</a></span>
+</footer>
+
 <script>
 if(new URLSearchParams(location.search).get('error')==='checkout')document.getElementById('checkout-error').hidden=false;
 const usd=(c)=>'US$'+(c/100).toFixed(2);
@@ -47,7 +169,7 @@ fetch('https://agentdeck-billing.finnova.com.au/v1/pricing').then(r=>r.json()).t
   const P=p.plans,f=p.founding||{remaining:0,limit:0},open=f.remaining>0;
   document.getElementById('a-price').textContent=usd(P.annual.cents);
   if(open){
-    document.getElementById('spots').innerHTML='<b>'+f.remaining.toLocaleString()+'</b> of '+f.limit.toLocaleString()+' spots left.';
+    document.getElementById('spots').innerHTML=f.remaining.toLocaleString()+' of '+f.limit.toLocaleString()+' founding spots left';
     document.getElementById('m-price').textContent=usd(P.monthly.foundingCents);
     document.getElementById('m-note').textContent='Early-access price, kept for as long as you stay subscribed. New customers later pay '+usd(P.monthly.cents)+'/month.';
     document.getElementById('l-price').textContent=usd(P.lifetime.foundingCents);
