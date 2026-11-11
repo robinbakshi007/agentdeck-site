@@ -14163,7 +14163,7 @@ code{font:13px ui-monospace,Menlo,monospace}.code{font:600 22px ui-monospace,Men
 <div class="card"><h2>Status</h2><div id="status" class="muted">Loading\u2026</div><div id="compat" class="muted" style="margin-top:8px"></div></div>
 <div class="card"><h2>Pulsar Pro license</h2><div id="lic" class="muted">Checking\u2026</div>
 <div class="row"><input id="licKey" placeholder="ADK-XXXX-XXXX-XXXX-XXXX" autocomplete="off"><button id="licBtn">Activate</button></div>
-<div id="licLinks" class="muted"><a href="https://agentdeck.finnova.com.au/pricing" target="_blank" rel="noopener">Buy a license</a></div></div>
+<div id="licLinks" class="muted"><a href="https://agentdeck.finnova.com.au/early-access" target="_blank" rel="noopener">Start 90-day free trial</a> \xB7 <a href="https://agentdeck.finnova.com.au/pricing" target="_blank" rel="noopener">Buy a license</a></div></div>
 <div class="card"><h2>Pair a phone</h2>
 <p class="muted">Open Pulsar on your phone, tap <b>Scan pairing code</b>, and scan this code. Codes expire after 10 minutes and work once.</p>
 <div id="pair"><button id="pairBtn">Show pairing code</button></div></div>
@@ -14197,7 +14197,7 @@ async function refresh(){
   $('audit').innerHTML=(s.audit||[]).length?s.audit.map(e=>'<div class="row"><span><b>'+esc(ACT[e.action]||e.action)+'</b>'+(e.deviceName?' \xB7 '+esc(e.deviceName):'')+' <span class="muted">'+esc(e.agent)+(e.detail?' \xB7 '+esc(e.detail.slice(0,120)):'')+(e.progress?' \xB7 '+esc(e.progress):'')+'</span></span><span class="muted">'+esc(new Date(e.at).toLocaleString())+'</span></div>').join(''):'Nothing yet.';
   const L=s.license;
   if(L){$('lic').innerHTML='<span class="dot" style="background:'+(L.active&&L.status!=='none'?'var(--ok)':L.required?'var(--bad)':'var(--muted)')+'"></span>'+esc(L.required||L.key?L.message:'Free while Pulsar sales are not open yet.')+(L.renewsAt?' Renews '+esc(new Date(L.renewsAt).toLocaleDateString())+'.':'')+(L.email?' ('+esc(L.email)+')':'');
-    $('licLinks').innerHTML=(L.portalUrl?'<a href="'+esc(L.portalUrl)+'" target="_blank" rel="noopener">Manage billing, invoices or cancel</a> \xB7 ':'')+'<a href="https://agentdeck.finnova.com.au/pricing" target="_blank" rel="noopener">'+(L.key?'Pricing':'Buy a license')+'</a>';}
+    $('licLinks').innerHTML=(L.portalUrl?'<a href="'+esc(L.portalUrl)+'" target="_blank" rel="noopener">Manage billing, invoices or cancel</a> \xB7 ':'')+(!L.key?'<a href="https://agentdeck.finnova.com.au/early-access" target="_blank" rel="noopener"><b>Start 90-day free trial</b></a> \xB7 ':'')+'<a href="https://agentdeck.finnova.com.au/pricing" target="_blank" rel="noopener">'+(L.key?'Pricing':'Buy a license')+'</a>';}
   if(document.activeElement!==$('relay'))$('relay').value=s.relay.url||'';
   $('relayStatus').textContent=s.relay.url?('Relay: '+s.relay.status+(s.relay.error?' \u2014 '+s.relay.error:'')):'Remote access is off.';
 }
