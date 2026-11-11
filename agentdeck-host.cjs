@@ -14237,7 +14237,7 @@ a{color:var(--accent)}
   <p id="anywhere" class="muted" style="font-size:13px"></p>
   <p class="muted" style="font-size:13px">Code expires in <span id="left">10:00</span>. <button id="new" style="padding:4px 10px;font-size:13px">New code</button></p>
   <ol class="muted" style="font-size:14px">
-    <li>Don't have the app yet? Android: <a href="https://agentdeck.finnova.com.au/android" target="_blank" rel="noopener">download it now</a>. iPhone and iPad: <a href="https://testflight.apple.com/join/taSBA684" target="_blank" rel="noopener">join the beta</a>.</li>
+    <li>Don't have the app yet? iPhone and iPad: <a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776" target="_blank" rel="noopener">get it on the App Store</a>. Android: <a href="https://agentdeck.finnova.com.au/android" target="_blank" rel="noopener">download it now</a>.</li>
     <li>Once paired, your phone keeps working away from home: on mobile data or any Wi-Fi.</li>
   </ol>
 </div>

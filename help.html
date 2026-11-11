@@ -1,10 +1,41 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pulsar Help</title><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
-<style>details{border-bottom:1px solid var(--border);padding:12px 0}summary{cursor:pointer;font-weight:700}details p,details ol{margin:8px 0 0}.toc a{margin-right:14px}</style></head><body><main>
+<style>
+main{max-width:1040px}
+.toc a{margin-right:14px}
+.help-grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(340px,1.15fr);gap:24px;align-items:start;margin:20px 0 32px}
+.help-col1 details.cat{border:1px solid var(--border);border-radius:14px;background:var(--surface);margin-bottom:14px;overflow:hidden}
+.help-col1 details.cat>summary{cursor:pointer;font-weight:800;font-size:18px;padding:14px 18px;list-style:none;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid transparent;user-select:none}
+.help-col1 details.cat>summary::-webkit-details-marker{display:none}
+.help-col1 details.cat>summary::after{content:"▸";color:var(--muted);font-size:16px;transition:transform .15s ease}
+.help-col1 details.cat[open]>summary{border-bottom-color:var(--border)}
+.help-col1 details.cat[open]>summary::after{transform:rotate(90deg);color:var(--accent)}
+.q-list{display:flex;flex-direction:column}
+.q-btn{appearance:none;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);text-align:left;font:600 15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:12px 16px;cursor:pointer;display:flex;align-items:flex-start;gap:10px;transition:background .12s ease,color .12s ease}
+.q-btn:last-child{border-bottom:0}
+.q-btn::before{content:"▸";color:var(--muted);font-size:13px;line-height:1.4;flex-shrink:0;transition:transform .15s ease,color .15s ease}
+.q-btn:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.q-btn[aria-selected="true"]{background:color-mix(in srgb,var(--accent) 11%,transparent);color:var(--accent);font-weight:700}
+.q-btn[aria-selected="true"]::before{content:"▾";color:var(--accent)}
+.help-col2{position:sticky;top:24px}
+.answer-card{margin:0;padding:24px}
+.answer-cat{display:inline-block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);padding:3px 10px;border-radius:999px;margin-bottom:10px}
+.answer-card h3{font-size:21px;line-height:1.3;margin:0 0 12px}
+.answer-body p,.answer-body ol{margin:0 0 10px}
+.answer-body p:last-child,.answer-body ol:last-child{margin-bottom:0}
+.answer-nav{display:flex;justify-content:space-between;align-items:center;margin-top:18px;padding-top:14px;border-top:1px solid var(--border);font-size:14px}
+.answer-nav button{appearance:none;border:1px solid var(--border);background:var(--bg);color:var(--text);border-radius:8px;padding:6px 12px;font:600 13px/1.2 inherit;cursor:pointer}
+.answer-nav button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.answer-nav button:disabled{opacity:.4;cursor:default}
+@media (max-width:780px){
+  .help-grid{grid-template-columns:1fr}
+  .help-col2{position:static}
+}
+</style></head><body><main>
 <nav><a class="brand" href="/"><img src="/logo.png" alt="" width="22" height="22" style="vertical-align:-5px;border-radius:5px;margin-right:6px">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
 <h1>Help centre</h1>
-<p class="toc muted"><a href="#start">Getting started</a><a href="#faq">Questions</a><a href="#trouble">Troubleshooting</a><a href="#billing">Billing</a><a href="#contact">Contact us</a></p>
+<p class="toc muted"><a href="#start">Getting started</a><a href="#faq" data-cat="faq">Questions</a><a href="#trouble" data-cat="trouble">Troubleshooting</a><a href="#billing" data-cat="billing">Billing</a><a href="#contact">Contact us</a></p>
 
 <h2 id="start">Getting started</h2>
 <div class="card">
@@ -12,38 +43,141 @@
 <ol>
   <li><b>On your Mac</b>, make sure Antigravity is installed and you're signed in.</li>
   <li><a href="/mac">Download Pulsar for Mac</a>, drag it to Applications and open it. A window shows a QR code and an 8-character code.</li>
-  <li><b>On your phone</b>, install Pulsar (awaiting App Store and Google Play approval: <a href="/early-access">join the waiting list</a> to hear the moment it's live) and tap <b>Scan pairing code</b>, or <b>Enter code instead</b> and type the code.</li>
+  <li><b>On your phone</b>, install Pulsar (<a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776">iPhone &amp; iPad on the App Store</a> or <a href="/download#android">Android</a>) and tap <b>Scan pairing code</b>, or <b>Enter code instead</b> and type the code.</li>
   <li>Choose a PIN or fingerprint/Face ID lock. Your Antigravity conversations appear, grouped by project, and you can send prompts, watch the agent work, review changes and approve commands.</li>
 </ol>
 <p class="muted" style="margin-bottom:0">Installed the phone app first? On the welcome screen tap <b>Send the download link to my Mac</b>.</p>
 </div>
 
-<h2 id="faq">Common questions</h2>
-<details><summary>Why isn't Pulsar just built on Antigravity's own Remote Control?</summary><p>Remote Control is Google's private service, signed in with your Google account; other apps aren't allowed to use that login (Google has suspended accounts for it). So Pulsar uses the same idea in its own way: it runs inside Antigravity as an extension and talks to your phone through its own end-to-end encrypted connection, never touching your Google login.</p></details>
-<details><summary>Does my phone need to be on the same Wi-Fi as my Mac?</summary><p>No. After pairing, Pulsar works on mobile data or any Wi-Fi. At home it connects directly; anywhere else it goes through our relay, which only forwards end-to-end encrypted data it cannot read. Typed pairing codes work from anywhere too.</p></details>
-<details><summary>Does my Mac need to stay on?</summary><p>Yes: the agent runs on your Mac, so it must be on, awake and online, with Pulsar in the menu bar. To keep it awake while plugged in: System Settings → Battery (or Energy) → prevent automatic sleeping when the display is off.</p></details>
-<details><summary>Is my code sent to Pulsar's servers?</summary><p>No. Prompts, code and agent output go only between your phone and your Mac, end-to-end encrypted. See the <a href="/privacy">privacy policy</a>.</p></details>
-<details><summary>Why am I never asked to approve commands?</summary><p>Antigravity only pauses for approval when its permission preset asks. In Antigravity: <b>Settings → General → Permission Settings</b> → <b>Request Review</b> (or <b>Default</b>, which asks before running anything outside its sandbox). With <b>Turbo</b>, commands run straight away and there is nothing to approve. Projects can override this under Settings → Projects.</p></details>
-<details><summary>Can I use it with Windows, Linux or an Intel Mac?</summary><p>Yes. The Mac app works on Apple silicon and Intel Macs, and there is a one-click Windows app. Linux uses the Terminal installer. See <a href="/download">Download</a>.</p></details>
-<details><summary>Can I pair more than one phone?</summary><p>Yes. Menu-bar icon → <b>Pair a phone…</b> on your Mac. One subscription covers up to 3 computers.</p></details>
-<details><summary>I lost my phone</summary><p>On your Mac: menu-bar icon → <b>Open dashboard</b> → remove the phone. It can no longer connect.</p></details>
-<details><summary>How do I update?</summary><p>The phone app updates through the App Store or Google Play. When a newer Pulsar for Mac is out, the menu-bar icon shows <b>Update available</b>, the dashboard shows a notice and your phone tells you. Download the new version from <a href="/mac">the Mac page</a> and replace the old app.</p></details>
-<details><summary>How do I uninstall?</summary><p>Mac app: menu-bar icon → turn off <b>Start at login</b> → <b>Quit Pulsar</b>, then move Pulsar from Applications to the Bin. Terminal install: run <code>node ~/.agentdeck/bin/agentdeck-host.cjs uninstall</code>.</p></details>
+<div class="help-grid" id="help-explorer">
+  <div class="help-col1" role="tablist" aria-label="Help questions">
+    <details class="cat" id="faq" open>
+      <summary>Common questions</summary>
+      <div class="q-list">
+        <button type="button" class="q-btn" role="tab" aria-selected="true" data-cat="Common questions" data-q="q-rc">Why isn't Pulsar just built on Antigravity's own Remote Control?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Common questions" data-q="q-wifi">Does my phone need to be on the same Wi-Fi as my Mac?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Common questions" data-q="q-awake">Does my Mac need to stay on?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Common questions" data-q="q-privacy">Is my code sent to Pulsar's servers?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Common questions" data-q="q-approve">Why am I never asked to approve commands?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Common questions" data-q="q-os">Can I use it with Windows, Linux or an Intel Mac?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Common questions" data-q="q-multi">Can I pair more than one phone?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Common questions" data-q="q-lost">I lost my phone</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Common questions" data-q="q-update">How do I update?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Common questions" data-q="q-uninstall">How do I uninstall?</button>
+      </div>
+    </details>
 
-<h2 id="trouble">Troubleshooting</h2>
-<details open><summary>Where is my pairing code? The website doesn't show one</summary><p>The code is made by Pulsar on your computer (it holds that computer's identity and a one-time key), so the website can't show it. On the computer where Pulsar is installed: <a href="http://localhost:48632/pair">open the pairing page</a>, or on a Mac click the Pulsar menu-bar icon → <b>Pair a phone…</b>. Not installed yet? <a href="/download">Download Pulsar</a> first.</p></details>
-<details><summary>"That code was not found"</summary><p>Codes last 10 minutes. On your Mac, click <b>New code</b> in the pairing window (menu-bar icon → Pair a phone…) and type the new one. Check your Mac is online.</p></details>
-<details><summary>The phone says my Mac is offline</summary><ol><li>Wake the Mac and check the Pulsar icon is in the menu bar (open Pulsar from Applications if not).</li><li>Check the Mac has internet.</li><li>On the phone, pull down on the conversation list to retry.</li></ol></details>
-<details><summary>"Antigravity isn't running" / no conversations</summary><p>Open Antigravity and sign in. Then menu-bar icon → <b>Check Antigravity</b>: it tests every part Pulsar uses and says which one fails (useful to include when you contact us).</p></details>
-<details><summary>macOS says it can't check Pulsar for malicious software</summary><p>Open System Settings → Privacy &amp; Security, scroll down and click <b>Open Anyway</b> next to Pulsar.</p></details>
-<details><summary>Work from the phone doesn't show in Antigravity</summary><p>Update Pulsar for Mac to 1.2 or newer. If an old conversation still looks out of date, quit and reopen Antigravity.</p></details>
+    <details class="cat" id="trouble" open>
+      <summary>Troubleshooting</summary>
+      <div class="q-list">
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Troubleshooting" data-q="t-code">Where is my pairing code? The website doesn't show one</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Troubleshooting" data-q="t-notfound">"That code was not found"</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Troubleshooting" data-q="t-offline">The phone says my Mac is offline</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Troubleshooting" data-q="t-notrunning">"Antigravity isn't running" / no conversations</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Troubleshooting" data-q="t-gatekeeper">macOS says it can't check Pulsar for malicious software</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Troubleshooting" data-q="t-sync">Work from the phone doesn't show in Antigravity</button>
+      </div>
+    </details>
 
-<h2 id="billing">Billing and licenses</h2>
-<details><summary>What does it cost?</summary><p>The phone app is free. Pulsar Pro for your computer is a monthly subscription: see <a href="/pricing">pricing</a>.</p></details>
-<details><summary>Where is my license key?</summary><p>It's shown after checkout, printed on your invoices, and on the dashboard of any computer you activated. Lost it? <a href="#contact">Contact us</a> with your billing email.</p></details>
-<details><summary>How do I cancel or change my card?</summary><p>On your Mac: menu-bar icon → <b>Open dashboard</b> → <b>Manage billing</b>. You keep access until the end of the paid month.</p></details>
+    <details class="cat" id="billing" open>
+      <summary>Billing and licenses</summary>
+      <div class="q-list">
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Billing and licenses" data-q="b-cost">What does it cost?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Billing and licenses" data-q="b-key">Where is my license key?</button>
+        <button type="button" class="q-btn" role="tab" aria-selected="false" data-cat="Billing and licenses" data-q="b-cancel">How do I cancel or change my card?</button>
+      </div>
+    </details>
+  </div>
+
+  <div class="help-col2" id="answer-panel" role="tabpanel" aria-live="polite">
+    <div class="card answer-card">
+      <span class="answer-cat" id="answer-cat">Common questions</span>
+      <h3 id="answer-title">Why isn't Pulsar just built on Antigravity's own Remote Control?</h3>
+      <div class="answer-body" id="answer-body">
+        <p>Remote Control is Google's private service, signed in with your Google account; other apps aren't allowed to use that login (Google has suspended accounts for it). So Pulsar uses the same idea in its own way: it runs inside Antigravity as an extension and talks to your phone through its own end-to-end encrypted connection, never touching your Google login.</p>
+      </div>
+      <div class="answer-nav">
+        <button type="button" id="prev-q" disabled>← Previous</button>
+        <span class="muted" id="q-counter">1 of 19</span>
+        <button type="button" id="next-q">Next →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div hidden id="answer-templates">
+  <div data-id="q-rc"><p>Remote Control is Google's private service, signed in with your Google account; other apps aren't allowed to use that login (Google has suspended accounts for it). So Pulsar uses the same idea in its own way: it runs inside Antigravity as an extension and talks to your phone through its own end-to-end encrypted connection, never touching your Google login.</p></div>
+  <div data-id="q-wifi"><p>No. After pairing, Pulsar works on mobile data or any Wi-Fi. At home it connects directly; anywhere else it goes through our relay, which only forwards end-to-end encrypted data it cannot read. Typed pairing codes work from anywhere too.</p></div>
+  <div data-id="q-awake"><p>Yes: the agent runs on your Mac, so it must be on, awake and online, with Pulsar in the menu bar. To keep it awake while plugged in: System Settings → Battery (or Energy) → prevent automatic sleeping when the display is off.</p></div>
+  <div data-id="q-privacy"><p>No. Prompts, code and agent output go only between your phone and your Mac, end-to-end encrypted. See the <a href="/privacy">privacy policy</a>.</p></div>
+  <div data-id="q-approve"><p>Antigravity only pauses for approval when its permission preset asks. In Antigravity: <b>Settings → General → Permission Settings</b> → <b>Request Review</b> (or <b>Default</b>, which asks before running anything outside its sandbox). With <b>Turbo</b>, commands run straight away and there is nothing to approve. Projects can override this under Settings → Projects.</p></div>
+  <div data-id="q-os"><p>Yes. The Mac app works on Apple silicon and Intel Macs, and there is a one-click Windows app. Linux uses the Terminal installer. See <a href="/download">Download</a>.</p></div>
+  <div data-id="q-multi"><p>Yes. Menu-bar icon → <b>Pair a phone…</b> on your Mac. One subscription covers up to 3 computers.</p></div>
+  <div data-id="q-lost"><p>On your Mac: menu-bar icon → <b>Open dashboard</b> → remove the phone. It can no longer connect.</p></div>
+  <div data-id="q-update"><p>The phone app updates through the <a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776">App Store</a> or Google Play. When a newer Pulsar for Mac is out, the menu-bar icon shows <b>Update available</b>, the dashboard shows a notice and your phone tells you. Download the new version from <a href="/mac">the Mac page</a> and replace the old app.</p></div>
+  <div data-id="q-uninstall"><p>Mac app: menu-bar icon → turn off <b>Start at login</b> → <b>Quit Pulsar</b>, then move Pulsar from Applications to the Bin. Terminal install: run <code>node ~/.agentdeck/bin/agentdeck-host.cjs uninstall</code>.</p></div>
+  <div data-id="t-code"><p>The code is made by Pulsar on your computer (it holds that computer's identity and a one-time key), so the website can't show it. On the computer where Pulsar is installed: <a href="http://localhost:48632/pair">open the pairing page</a>, or on a Mac click the Pulsar menu-bar icon → <b>Pair a phone…</b>. Not installed yet? <a href="/download">Download Pulsar</a> first.</p></div>
+  <div data-id="t-notfound"><p>Codes last 10 minutes. On your Mac, click <b>New code</b> in the pairing window (menu-bar icon → Pair a phone…) and type the new one. Check your Mac is online.</p></div>
+  <div data-id="t-offline"><ol><li>Wake the Mac and check the Pulsar icon is in the menu bar (open Pulsar from Applications if not).</li><li>Check the Mac has internet.</li><li>On the phone, pull down on the conversation list to retry.</li></ol></div>
+  <div data-id="t-notrunning"><p>Open Antigravity and sign in. Then menu-bar icon → <b>Check Antigravity</b>: it tests every part Pulsar uses and says which one fails (useful to include when you contact us).</p></div>
+  <div data-id="t-gatekeeper"><p>Open System Settings → Privacy &amp; Security, scroll down and click <b>Open Anyway</b> next to Pulsar.</p></div>
+  <div data-id="t-sync"><p>Update Pulsar for Mac to 1.2 or newer. If an old conversation still looks out of date, quit and reopen Antigravity.</p></div>
+  <div data-id="b-cost"><p>The phone app is free. Pulsar Pro for your computer is a monthly subscription: see <a href="/pricing">pricing</a>.</p></div>
+  <div data-id="b-key"><p>It's shown after checkout, printed on your invoices, and on the dashboard of any computer you activated. Lost it? <a href="#contact">Contact us</a> with your billing email.</p></div>
+  <div data-id="b-cancel"><p>On your Mac: menu-bar icon → <b>Open dashboard</b> → <b>Manage billing</b>. You keep access until the end of the paid month.</p></div>
+</div>
 
 <h2 id="contact">Contact us</h2>
 <div class="card"><p style="margin:0">Use <b>Help &amp; support → Contact support</b> in the phone app (it can attach your app and Mac versions), or the <a href="/support">support form</a>. We aim to reply within one business day.</p></div>
 <p class="muted" style="font-size:13px">Pulsar is an independent companion app and is not affiliated with Google or Antigravity.</p>
+
+<script>
+(() => {
+  const btns = Array.from(document.querySelectorAll('.q-btn'));
+  const catEl = document.getElementById('answer-cat');
+  const titleEl = document.getElementById('answer-title');
+  const bodyEl = document.getElementById('answer-body');
+  const counterEl = document.getElementById('q-counter');
+  const prevBtn = document.getElementById('prev-q');
+  const nextBtn = document.getElementById('next-q');
+  const panelEl = document.getElementById('answer-panel');
+  let activeIdx = 0;
+
+  function selectQuestion(idx, scrollMobile = false) {
+    if (idx < 0 || idx >= btns.length) return;
+    activeIdx = idx;
+    btns.forEach((b, i) => b.setAttribute('aria-selected', i === idx ? 'true' : 'false'));
+    const btn = btns[idx];
+    const details = btn.closest('details.cat');
+    if (details && !details.open) details.open = true;
+    const tpl = document.querySelector(`#answer-templates [data-id="${btn.dataset.q}"]`);
+    catEl.textContent = btn.dataset.cat || '';
+    titleEl.textContent = btn.textContent;
+    bodyEl.innerHTML = tpl ? tpl.innerHTML : '';
+    counterEl.textContent = `${idx + 1} of ${btns.length}`;
+    prevBtn.disabled = idx === 0;
+    nextBtn.disabled = idx === btns.length - 1;
+    if (scrollMobile && window.matchMedia('(max-width: 780px)').matches) {
+      panelEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  btns.forEach((btn, idx) => {
+    btn.addEventListener('click', () => selectQuestion(idx, true));
+  });
+  prevBtn.addEventListener('click', () => selectQuestion(activeIdx - 1));
+  nextBtn.addEventListener('click', () => selectQuestion(activeIdx + 1));
+
+  document.querySelectorAll('.toc a[data-cat]').forEach((a) => {
+    a.addEventListener('click', () => {
+      const cat = document.getElementById(a.dataset.cat);
+      if (cat) {
+        cat.open = true;
+        const firstBtn = cat.querySelector('.q-btn');
+        if (firstBtn) selectQuestion(btns.indexOf(firstBtn));
+      }
+    });
+  });
+})();
+</script>
 </main></body></html>
