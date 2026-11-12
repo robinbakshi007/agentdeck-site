@@ -14245,6 +14245,13 @@ a{color:var(--accent)}
   <div class="ok">\u2705</div>
   <h1>Paired with <span id="phone">your phone</span></h1>
   <p class="muted">You can close this window. Pulsar keeps running in the background and starts with your computer.</p>
+  <div id="pairLic" hidden style="background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:18px;margin:18px 0;text-align:left">
+    <h2 style="font-size:17px;margin:0 0 6px">\u{1F381} Last step: Activate your 90-day free trial</h2>
+    <p class="muted" style="margin:0 0 12px;font-size:14px">Start your 90-day free trial (US$0.00 today) or enter your license key so your phone can control your agents:</p>
+    <p style="margin:0 0 12px"><a href="https://agentdeck.finnova.com.au/early-access" target="_blank" rel="noopener" style="display:inline-block;background:var(--accent);color:#fff;text-decoration:none;border-radius:8px;padding:9px 16px;font-weight:700">Start 90-day free trial (US$0 today) \u2192</a></p>
+    <div style="display:flex;gap:8px"><input id="pairLicKey" placeholder="ADK-XXXX-XXXX-XXXX-XXXX" style="flex:1;font:14px ui-monospace,Menlo,monospace;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)"><button id="pairLicBtn" type="button">Activate</button></div>
+    <p id="pairLicMsg" class="muted" style="margin:8px 0 0;font-size:13px"></p>
+  </div>
   <p><a href="/">Open the Pulsar dashboard</a> \xB7 <button id="another">Pair another phone</button></p>
 </div>
 <script>
@@ -14263,13 +14270,14 @@ async function watch(){
     const ids=s.devices.map(d=>d.deviceId);
     if(known===null) known=ids;
     const fresh=s.devices.find(d=>!known.includes(d.deviceId));
-    if(fresh){document.getElementById('phone').textContent=fresh.name;document.getElementById('waiting').hidden=true;document.getElementById('done').hidden=false;known=ids;}
+    if(fresh){document.getElementById('phone').textContent=fresh.name;document.getElementById('waiting').hidden=true;document.getElementById('done').hidden=false;if(s.license&&s.license.required&&!s.license.active)document.getElementById('pairLic').hidden=false;known=ids;}
   }catch(e){}
 }
 setInterval(()=>{const s=Math.max(0,Math.round((expires-Date.now())/1000));document.getElementById('left').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');if(expires&&s===0)load();},1000);
 setInterval(watch,1500);
 document.getElementById('new').onclick=()=>fetch('/local/pair/new',{method:'POST',headers:{'Content-Type':'application/json','X-AgentDeck':'1'},body:'{}'}).then(load);
 document.getElementById('another').onclick=()=>{document.getElementById('done').hidden=true;document.getElementById('waiting').hidden=false;load();};
+document.getElementById('pairLicBtn').onclick=async()=>{const k=document.getElementById('pairLicKey').value.trim();if(!k)return;const r=await fetch('/local/license',{method:'POST',headers:{'Content-Type':'application/json','X-AgentDeck':'1'},body:JSON.stringify({key:k})}).then(x=>x.json());document.getElementById('pairLicMsg').textContent=r.error?r.error:(r.active?'\u2705 Pulsar Pro is active! You can now use the phone app.':r.message||'Saved.');if(r.active)setTimeout(()=>{document.getElementById('pairLic').hidden=true;},1500);};
 load();watch();
 </script>
 </main></body></html>`;
