@@ -79,12 +79,12 @@
 
 <section class="trial-hero">
   <div>
-    <span class="eyebrow" style="margin-bottom:6px">90-Day Free Trial</span>
-    <h2>Try Pulsar Pro free for 3 months (90 days)</h2>
-    <p>Pay <b>US$0.00 today</b>. Get your license key immediately, pair your iPhone or Android phone, and only pay US$0.99/month per computer after 90 days if you decide to stay.</p>
+    <span class="eyebrow" style="margin-bottom:6px">14 Days Free Built In · Or 90-Day Early-Access Trial</span>
+    <h2>Start free for 14 days — no credit card required</h2>
+    <p>Install Pulsar on your computer and pair your phone right away with an automatic <b>14-day no-card free trial</b>. Want 3 full months free? Lock in our <b>90-day early-access trial</b> (US$0 today via Card, Apple Pay, Google Pay, or Link, then US$0.99/month per computer).</p>
     <div class="trial-badges">
-      <span>✓ US$0.00 charged today</span>
-      <span>✓ Reminder email 3 days before day 90</span>
+      <span>✓ 14 days free automatically (no card)</span>
+      <span>✓ Apple Pay · Google Pay · Link</span>
       <span>✓ 1-click cancel any time</span>
     </div>
   </div>
@@ -121,13 +121,13 @@
 
   <div class="plan-card">
     <h2>Lifetime</h2>
-    <div class="price-line"><span class="big" id="l-price">US$29.99</span> <span class="muted" id="l-unit">once + US$0.99/mo</span></div>
-    <p class="plan-desc" id="l-note">Founding price (RRP US$99 once). Includes every future update across up to 3 computers.</p>
+    <div class="price-line"><span class="big" id="l-price">US$29.99</span> <span class="muted" id="l-unit">once · no monthly fee</span></div>
+    <p class="plan-desc" id="l-note">True one-time payment (founding price, RRP US$99). No recurring charge — ever.</p>
     <ul class="plan-perks">
       <li>Up to 3 computers included</li>
       <li>Unlimited iPhone, iPad &amp; Android devices</li>
       <li>Every future Pulsar 1.x &amp; 2.x update</li>
-      <li>Locked-in founding relay rate</li>
+      <li>Zero monthly or renewal fees</li>
     </ul>
     <a class="btn btn-outline buy" data-plan="lifetime" href="https://agentdeck-billing.finnova.com.au/checkout?plan=lifetime">Choose lifetime</a>
   </div>
@@ -173,8 +173,8 @@ fetch('https://agentdeck-billing.finnova.com.au/v1/pricing').then(r=>r.json()).t
     document.getElementById('m-price').textContent=usd(P.monthly.foundingCents);
     document.getElementById('m-note').textContent='Early-access price, kept for as long as you stay subscribed. New customers later pay '+usd(P.monthly.cents)+'/month.';
     document.getElementById('l-price').textContent=usd(P.lifetime.foundingCents);
-    document.getElementById('l-unit').textContent='once + '+usd(P.lifetime.foundingMonthlyCents)+'/month';
-    document.getElementById('l-note').textContent='Early-access price (RRP '+usd(P.lifetime.cents)+' once). Includes every future update.';
+    document.getElementById('l-unit').textContent=P.lifetime.foundingMonthlyCents?'once + '+usd(P.lifetime.foundingMonthlyCents)+'/month':'once · no monthly fee';
+    document.getElementById('l-note').textContent='True one-time founding price (RRP '+usd(P.lifetime.cents)+' once). Zero recurring fees.';
   } else {
     document.getElementById('founding').hidden=true;
     document.getElementById('m-price').textContent=usd(P.monthly.cents);

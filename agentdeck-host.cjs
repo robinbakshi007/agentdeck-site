@@ -10467,10 +10467,10 @@ var require_websocket_server = __commonJS({
 });
 
 // src/live/main.ts
-var import_fs10 = require("fs");
-var import_os8 = require("os");
-var import_path10 = require("path");
-var import_child_process7 = require("child_process");
+var import_fs11 = require("fs");
+var import_os9 = require("os");
+var import_path11 = require("path");
+var import_child_process8 = require("child_process");
 var import_http3 = require("http");
 var import_qrcode2 = __toESM(require_lib());
 
@@ -10506,8 +10506,10 @@ function linuxProcesses(proc = "/proc") {
     try {
       const command = (0, import_fs.readFileSync)((0, import_path.join)(proc, d, "cmdline"), "utf8").split("\0").filter(Boolean).join(" ");
       if (!command) continue;
-      const uid = Number((0, import_fs.readFileSync)((0, import_path.join)(proc, d, "status"), "utf8").match(/^Uid:\s+(\d+)/m)?.[1] ?? -1);
-      out.push({ pid: Number(d), uid, command });
+      const statusText = (0, import_fs.readFileSync)((0, import_path.join)(proc, d, "status"), "utf8");
+      const uid = Number(statusText.match(/^Uid:\s+(\d+)/m)?.[1] ?? -1);
+      const ppidMatch = statusText.match(/^PPid:\s+(\d+)/m);
+      out.push({ pid: Number(d), ...ppidMatch ? { ppid: Number(ppidMatch[1]) } : {}, uid, command });
     } catch {
     }
   }
@@ -10532,7 +10534,7 @@ function linuxListeningPorts(pid, proc = "/proc") {
 async function listLanguageServerProcesses() {
   if (process.platform === "linux") {
     const uid2 = process.getuid?.();
-    return linuxProcesses().filter((p) => (uid2 === void 0 || p.uid === uid2) && isAntigravityProcess(p.command)).map((p) => ({ pid: p.pid, command: p.command }));
+    return linuxProcesses().filter((p) => (uid2 === void 0 || p.uid === uid2) && isAntigravityProcess(p.command)).map((p) => ({ pid: p.pid, ppid: p.ppid, command: p.command }));
   }
   if (process.platform === "win32") {
     const { stdout: stdout2 } = await execFileAsync(
@@ -10540,15 +10542,15 @@ async function listLanguageServerProcesses() {
       [
         "-NoProfile",
         "-Command",
-        `Get-CimInstance Win32_Process -Filter "Name like 'language_server%' or Name like 'agy%'" | ForEach-Object { "$($_.ProcessId)\`t$($_.CommandLine)" }`
+        `Get-CimInstance Win32_Process -Filter "Name like 'language_server%' or Name like 'agy%'" | ForEach-Object { "$($_.ProcessId)\`t$($_.ParentProcessId)\`t$($_.CommandLine)" }`
       ],
       { maxBuffer: 8 * 1024 * 1024 }
     );
-    return stdout2.split(/\r?\n/).map((l) => l.split("	")).filter((p) => p.length >= 2 && /^\d+$/.test(p[0])).map(([pid, ...rest]) => ({ pid: Number(pid), command: rest.join("	") })).filter((p) => isAntigravityProcess(p.command));
+    return stdout2.split(/\r?\n/).map((l) => l.split("	")).filter((p) => p.length >= 3 && /^\d+$/.test(p[0])).map(([pid, ppid, ...rest]) => ({ pid: Number(pid), ppid: Number(ppid) || 0, command: rest.join("	") })).filter((p) => isAntigravityProcess(p.command));
   }
-  const { stdout } = await execFileAsync("ps", ["-axww", "-o", "pid=,uid=,command="], { maxBuffer: 16 * 1024 * 1024 });
+  const { stdout } = await execFileAsync("ps", ["-axww", "-o", "pid=,ppid=,uid=,command="], { maxBuffer: 16 * 1024 * 1024 });
   const uid = process.getuid?.();
-  return stdout.split("\n").map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter((m) => !!m && isAntigravityProcess(m[3])).filter((m) => uid === void 0 || Number(m[2]) === uid).map((m) => ({ pid: Number(m[1]), command: m[3] }));
+  return stdout.split("\n").map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.*)$/)).filter((m) => !!m && isAntigravityProcess(m[4])).filter((m) => uid === void 0 || Number(m[3]) === uid).map((m) => ({ pid: Number(m[1]), ppid: Number(m[2]), command: m[4] }));
 }
 async function listeningPorts(pid) {
   try {
@@ -10578,6 +10580,10 @@ async function listeningPorts(pid) {
 function arg(command, name) {
   const m = command.match(new RegExp(`--${name}[= ]([^\\s]+)`));
   return m ? m[1] : null;
+}
+function argPath(command, name) {
+  const m = command.match(new RegExp(`--${name}=(.*?)(?=\\s+--[a-zA-Z0-9_-]+=|\\s+--[a-zA-Z0-9_-]+\\b|$)`));
+  return m ? m[1].replace(/^["']|["']$/g, "").trim() || null : null;
 }
 function connectCall(server, method, body, timeoutMs = 3e4) {
   const payload = JSON.stringify(body ?? {});
@@ -10634,6 +10640,9 @@ async function discoverLanguageServers() {
       const ports = hubPort > 0 ? [hubPort, ...discovered.filter((x) => x !== hubPort)] : discovered;
       const bin = p.command.replace(/^"([^"]+)".*$/, "$1").split(" --")[0].trim();
       const desktopGui = /[\\/]bin[\\/]language_server(_[a-z0-9_]+)?(\.exe)?$/i.test(bin);
+      const isAgyHub = /[\\/]bin[\\/]agy(\.exe)?$/i.test(bin) && /--hub\b/.test(p.command);
+      const ideWindow = isAgyHub && (p.ppid ?? 0) > 1;
+      const workspaceDir = argPath(p.command, "add-dir");
       for (const port of ports) {
         try {
           await connectCall({ port, csrf }, "GetUserStatus", {}, 3e3);
@@ -10643,7 +10652,9 @@ async function discoverLanguageServers() {
             csrf,
             workspaceId: arg(p.command, "workspace_id"),
             primary: !/--parent_pipe_path[= ]/.test(p.command) && !arg(p.command, "workspace_id"),
-            desktopGui
+            desktopGui,
+            ideWindow,
+            workspaceDir
           });
           return;
         } catch {
@@ -10652,7 +10663,7 @@ async function discoverLanguageServers() {
     })
   );
   return found.sort(
-    (a, b) => Number(!!b.primary) - Number(!!a.primary) || Number(!!b.desktopGui) - Number(!!a.desktopGui) || Number(!!a.workspaceId) - Number(!!b.workspaceId)
+    (a, b) => Number(!!b.primary) - Number(!!a.primary) || Number(!!(b.desktopGui || b.ideWindow)) - Number(!!(a.desktopGui || a.ideWindow)) || Number(!!b.desktopGui) - Number(!!a.desktopGui) || Number(!!a.workspaceId) - Number(!!b.workspaceId)
   );
 }
 var AntigravityBridge = class {
@@ -10889,8 +10900,19 @@ var AntigravityBridge = class {
   }
   async startConversation(workspaceUri) {
     const servers = await this.ensureServers();
+    let wsPath = "";
+    try {
+      wsPath = decodeURIComponent(workspaceUri.replace(/^file:\/\//, "")).replace(/\/+$/, "");
+    } catch {
+      wsPath = "";
+    }
+    const ordered = [...servers].sort((a, b) => {
+      const aMatch = Number(!!(wsPath && a.ideWindow && a.workspaceDir?.replace(/\/+$/, "") === wsPath));
+      const bMatch = Number(!!(wsPath && b.ideWindow && b.workspaceDir?.replace(/\/+$/, "") === wsPath));
+      return bMatch - aMatch || Number(!!(b.desktopGui || b.ideWindow)) - Number(!!(a.desktopGui || a.ideWindow));
+    });
     let lastErr = new AntigravityError(this.lastError ?? "Antigravity is not running", "not_running");
-    for (const server of servers) {
+    for (const server of ordered) {
       try {
         const res = await connectCall(server, "StartCascade", {
           workspaceUris: [workspaceUri],
@@ -10898,7 +10920,7 @@ var AntigravityBridge = class {
         });
         if (res.cascadeId) {
           this.owner.set(res.cascadeId, server);
-          void this.focus(res.cascadeId).catch(() => void 0);
+          void connectCall(server, "SmartFocusConversation", { cascadeId: res.cascadeId }, 3e3).catch(() => void 0);
           return res.cascadeId;
         }
       } catch (e) {
@@ -10909,22 +10931,23 @@ var AntigravityBridge = class {
   }
   async sendMessage(cascadeId, text, opts) {
     const servers = await this.ensureServers();
-    const desktop = servers.find((s) => s.desktopGui);
     let owner = this.owner.get(cascadeId);
     if (!owner) {
       await this.listConversations();
       owner = this.owner.get(cascadeId);
     }
-    if (desktop && owner && owner.pid !== desktop.pid) {
+    const isLiveWindow = !!(owner?.desktopGui || owner?.ideWindow);
+    const fallbackGui = servers.find((s) => s.desktopGui || s.ideWindow);
+    if (!isLiveWindow && fallbackGui && owner && owner.pid !== fallbackGui.pid) {
       try {
-        await connectCall(desktop, "LoadTrajectory", { cascadeId }, 1e4);
-        owner = desktop;
-        this.owner.set(cascadeId, desktop);
+        await connectCall(fallbackGui, "LoadTrajectory", { cascadeId }, 1e4);
+        owner = fallbackGui;
+        this.owner.set(cascadeId, fallbackGui);
       } catch {
       }
     }
     if (!owner) throw new AntigravityError(`Conversation ${cascadeId} is not loaded in Antigravity`, "not_found");
-    void this.focus(cascadeId).catch(() => void 0);
+    void connectCall(owner, "SmartFocusConversation", { cascadeId }, 3e3).catch(() => void 0);
     const body = {
       cascadeId,
       items: [{ text }],
@@ -10949,12 +10972,12 @@ var AntigravityBridge = class {
 
 // src/live/service.ts
 var import_events3 = require("events");
-var import_child_process4 = require("child_process");
+var import_child_process5 = require("child_process");
 var import_dgram = require("dgram");
-var import_fs5 = require("fs");
+var import_fs6 = require("fs");
 var import_net = require("net");
-var import_os3 = require("os");
-var import_path5 = require("path");
+var import_os4 = require("os");
+var import_path6 = require("path");
 var import_url = require("url");
 
 // src/live/steps.ts
@@ -11452,6 +11475,145 @@ async function createPullRequestUrl(cwd) {
   return { url, branch };
 }
 
+// src/live/screenshot.ts
+var import_child_process3 = require("child_process");
+var import_fs3 = require("fs");
+var import_os2 = require("os");
+var import_path3 = require("path");
+var import_util3 = require("util");
+var execFileAsync3 = (0, import_util3.promisify)(import_child_process3.execFile);
+var RECENT_MS = 3 * 60 * 1e3;
+var MAX_BYTES = 10 * 1024 * 1024;
+var CACHE_TTL_MS = 2e3;
+var cached = null;
+function newestRecentFile(dirs, namePattern) {
+  const cutoff = Date.now() - RECENT_MS;
+  let best = null;
+  for (const dir of dirs) {
+    if (!dir || !(0, import_fs3.existsSync)(dir)) continue;
+    let entries;
+    try {
+      entries = (0, import_fs3.readdirSync)(dir);
+    } catch {
+      continue;
+    }
+    for (const name of entries) {
+      if (!/\.(png|jpe?g|webp)$/i.test(name) || !namePattern.test(name)) continue;
+      const full = (0, import_path3.join)(dir, name);
+      try {
+        const st = (0, import_fs3.statSync)(full);
+        if (st.isFile() && st.size > 0 && st.size <= MAX_BYTES && st.mtimeMs >= cutoff) {
+          if (!best || st.mtimeMs > best.mtimeMs) best = { path: full, mtimeMs: st.mtimeMs };
+        }
+      } catch {
+      }
+    }
+  }
+  return best;
+}
+async function macScreenshotDirs() {
+  const dirs = [];
+  try {
+    const { stdout } = await execFileAsync3("defaults", ["read", "com.apple.screencapture", "location"], { timeout: 1500 });
+    const custom = stdout.trim().replace(/^~/, (0, import_os2.homedir)());
+    if (custom) dirs.push(custom);
+  } catch {
+  }
+  dirs.push((0, import_path3.join)((0, import_os2.homedir)(), "Desktop"));
+  return dirs;
+}
+async function macFileToJpegBase64(srcPath) {
+  const dir = (0, import_fs3.mkdtempSync)((0, import_path3.join)((0, import_os2.tmpdir)(), "pulsar-shot-"));
+  const out = (0, import_path3.join)(dir, "shot.jpg");
+  try {
+    await execFileAsync3("sips", ["-Z", "1600", "-s", "format", "jpeg", "-s", "formatOptions", "78", srcPath, "--out", out], { timeout: 5e3 });
+    return (0, import_fs3.readFileSync)(out).toString("base64");
+  } catch {
+    try {
+      return (0, import_fs3.readFileSync)(srcPath).toString("base64");
+    } catch {
+      return null;
+    }
+  } finally {
+    (0, import_fs3.rmSync)(dir, { recursive: true, force: true });
+  }
+}
+async function macClipboardImage() {
+  try {
+    const { stdout: info } = await execFileAsync3("osascript", ["-e", "clipboard info"], { timeout: 1500 });
+    const hasPng = info.includes("PNGf");
+    const hasTiff = info.includes("TIFF");
+    if (!hasPng && !hasTiff) return null;
+    const dir = (0, import_fs3.mkdtempSync)((0, import_path3.join)((0, import_os2.tmpdir)(), "pulsar-clip-"));
+    const raw = (0, import_path3.join)(dir, hasPng ? "clip.png" : "clip.tiff");
+    try {
+      const cls = hasPng ? "\xABclass PNGf\xBB" : "TIFF picture";
+      await execFileAsync3(
+        "osascript",
+        ["-e", `set d to the clipboard as ${cls}`, "-e", `set f to open for access POSIX file "${raw}" with write permission`, "-e", "write d to f", "-e", "close access f"],
+        { timeout: 2500 }
+      );
+      const b64 = await macFileToJpegBase64(raw);
+      if (!b64) return null;
+      const sig = `mac-clip:${b64.length}:${b64.slice(0, 32)}:${b64.slice(-32)}`;
+      return { base64: b64, mimeType: "image/jpeg", sig, label: "Mac clipboard" };
+    } finally {
+      (0, import_fs3.rmSync)(dir, { recursive: true, force: true });
+    }
+  } catch {
+    return null;
+  }
+}
+async function winClipboardImage() {
+  const script = [
+    "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;",
+    "if (-not [System.Windows.Forms.Clipboard]::ContainsImage()) { exit 0 }",
+    "$img = [System.Windows.Forms.Clipboard]::GetImage();",
+    "if ($null -eq $img) { exit 0 }",
+    "$ms = New-Object System.IO.MemoryStream;",
+    "$img.Save($ms, [System.Drawing.Imaging.ImageFormat]::Jpeg);",
+    "[Convert]::ToBase64String($ms.ToArray())"
+  ].join(" ");
+  try {
+    const { stdout } = await execFileAsync3("powershell", ["-NoProfile", "-STA", "-Command", script], { timeout: 3500, maxBuffer: 16 * 1024 * 1024 });
+    const b64 = stdout.trim();
+    if (!b64) return null;
+    const sig = `win-clip:${b64.length}:${b64.slice(0, 32)}:${b64.slice(-32)}`;
+    return { base64: b64, mimeType: "image/jpeg", sig, label: "Windows clipboard" };
+  } catch {
+    return null;
+  }
+}
+async function latestComputerScreenshot() {
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.value;
+  let result = null;
+  try {
+    if (process.platform === "darwin") {
+      const file = newestRecentFile(await macScreenshotDirs(), /screenshot|screen\s*shot/i);
+      if (file) {
+        const b64 = await macFileToJpegBase64(file.path);
+        if (b64) {
+          result = { base64: b64, mimeType: "image/jpeg", sig: `mac-file:${file.path}:${Math.floor(file.mtimeMs)}`, label: "Mac screenshot" };
+        }
+      }
+      if (!result) result = await macClipboardImage();
+    } else if (process.platform === "win32") {
+      const home = (0, import_os2.homedir)();
+      const file = newestRecentFile([(0, import_path3.join)(home, "Pictures", "Screenshots"), (0, import_path3.join)(home, "OneDrive", "Pictures", "Screenshots")], /.*/);
+      if (file) {
+        const b64 = (0, import_fs3.readFileSync)(file.path).toString("base64");
+        const mimeType = /\.png$/i.test(file.path) ? "image/png" : "image/jpeg";
+        result = { base64: b64, mimeType, sig: `win-file:${file.path}:${Math.floor(file.mtimeMs)}`, label: "Windows screenshot" };
+      }
+      if (!result) result = await winClipboardImage();
+    }
+  } catch {
+    result = null;
+  }
+  cached = { at: Date.now(), value: result };
+  return result;
+}
+
 // src/live/push.ts
 var import_https = require("https");
 var expoPushSender = (messages) => new Promise((resolve3) => {
@@ -11597,9 +11759,9 @@ function formatWakeOnLanPacket(mac) {
 
 // src/live/agents/claude.ts
 var import_events = require("events");
-var import_fs3 = require("fs");
-var import_os2 = require("os");
-var import_path3 = require("path");
+var import_fs4 = require("fs");
+var import_os3 = require("os");
+var import_path4 = require("path");
 
 // src/live/agents/provider.ts
 var ItemBook = class {
@@ -11664,12 +11826,12 @@ var tailText = (s, max = 1500) => s && s.length > max ? `\u2026${s.slice(-max)}`
 // src/live/agents/claude.ts
 var HOOK_MARKER = "/local/hooks/claude";
 function defaultClaudeSettingsPath() {
-  return process.env["AGENTDECK_CLAUDE_SETTINGS"] || (0, import_path3.join)((0, import_os2.homedir)(), ".claude", "settings.json");
+  return process.env["AGENTDECK_CLAUDE_SETTINGS"] || (0, import_path4.join)((0, import_os3.homedir)(), ".claude", "settings.json");
 }
 function isClaudeHooksInstalled(settingsPath = defaultClaudeSettingsPath()) {
   try {
-    if (!(0, import_fs3.existsSync)(settingsPath)) return false;
-    const raw = (0, import_fs3.readFileSync)(settingsPath, "utf8");
+    if (!(0, import_fs4.existsSync)(settingsPath)) return false;
+    const raw = (0, import_fs4.readFileSync)(settingsPath, "utf8");
     return raw.includes(HOOK_MARKER);
   } catch {
     return false;
@@ -11678,9 +11840,9 @@ function isClaudeHooksInstalled(settingsPath = defaultClaudeSettingsPath()) {
 function installClaudeHooks(port, enable, settingsPath = defaultClaudeSettingsPath()) {
   try {
     let cfg = {};
-    if ((0, import_fs3.existsSync)(settingsPath)) {
+    if ((0, import_fs4.existsSync)(settingsPath)) {
       try {
-        cfg = JSON.parse((0, import_fs3.readFileSync)(settingsPath, "utf8"));
+        cfg = JSON.parse((0, import_fs4.readFileSync)(settingsPath, "utf8"));
       } catch {
         cfg = {};
       }
@@ -11704,8 +11866,8 @@ function installClaudeHooks(port, enable, settingsPath = defaultClaudeSettingsPa
       if (!hooks.Stop.length) delete hooks.Stop;
     }
     cfg.hooks = Object.keys(hooks).length ? hooks : void 0;
-    (0, import_fs3.mkdirSync)((0, import_path3.dirname)(settingsPath), { recursive: true });
-    (0, import_fs3.writeFileSync)(settingsPath, JSON.stringify(cfg, null, 2), { mode: 384 });
+    (0, import_fs4.mkdirSync)((0, import_path4.dirname)(settingsPath), { recursive: true });
+    (0, import_fs4.writeFileSync)(settingsPath, JSON.stringify(cfg, null, 2), { mode: 384 });
     return enable;
   } catch {
     return false;
@@ -11715,8 +11877,8 @@ var PREFIX = "claude:";
 var toolKind = (name) => name === "Bash" ? "command" : ["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(name) ? "edit" : name === "Read" ? "view" : ["Grep", "Glob"].includes(name) ? "search" : ["WebFetch", "WebSearch"].includes(name) ? "web" : name.startsWith("mcp__") ? "mcp" : "other";
 function describeTool(name, input) {
   if (name === "Bash") return { title: input?.command ?? "Command", detail: input?.description };
-  if (["Edit", "Write", "MultiEdit"].includes(name)) return { title: `${name === "Write" ? "Write" : "Edit"} ${(0, import_path3.basename)(String(input?.file_path ?? "file"))}`, detail: input?.file_path };
-  if (name === "Read") return { title: `Read ${(0, import_path3.basename)(String(input?.file_path ?? "file"))}` };
+  if (["Edit", "Write", "MultiEdit"].includes(name)) return { title: `${name === "Write" ? "Write" : "Edit"} ${(0, import_path4.basename)(String(input?.file_path ?? "file"))}`, detail: input?.file_path };
+  if (name === "Read") return { title: `Read ${(0, import_path4.basename)(String(input?.file_path ?? "file"))}` };
   if (name === "Grep" || name === "Glob") return { title: `Search ${input?.pattern ?? ""}`.trim() };
   if (name === "WebFetch") return { title: `Fetch ${input?.url ?? ""}`.trim() };
   if (name === "WebSearch") return { title: `Search the web: ${input?.query ?? ""}`.trim() };
@@ -11725,8 +11887,8 @@ function describeTool(name, input) {
 function loadClaudeKey(dir) {
   if (process.env["ANTHROPIC_API_KEY"]) return process.env["ANTHROPIC_API_KEY"];
   try {
-    const f = (0, import_path3.join)(dir, "claude.json");
-    return (0, import_fs3.existsSync)(f) ? JSON.parse((0, import_fs3.readFileSync)(f, "utf8")).apiKey ?? null : null;
+    const f = (0, import_path4.join)(dir, "claude.json");
+    return (0, import_fs4.existsSync)(f) ? JSON.parse((0, import_fs4.readFileSync)(f, "utf8")).apiKey ?? null : null;
   } catch {
     return null;
   }
@@ -11735,10 +11897,10 @@ var ClaudeProvider = class extends import_events.EventEmitter {
   constructor(dir, queryFn) {
     super();
     this.dir = dir;
-    this.file = (0, import_path3.join)(dir, "claude-sessions.json");
+    this.file = (0, import_path4.join)(dir, "claude-sessions.json");
     this.queryFn = queryFn ?? null;
     try {
-      this.sessions = (0, import_fs3.existsSync)(this.file) ? JSON.parse((0, import_fs3.readFileSync)(this.file, "utf8")) : {};
+      this.sessions = (0, import_fs4.existsSync)(this.file) ? JSON.parse((0, import_fs4.readFileSync)(this.file, "utf8")) : {};
     } catch {
       this.sessions = {};
     }
@@ -11754,7 +11916,7 @@ var ClaudeProvider = class extends import_events.EventEmitter {
   toolIdx = /* @__PURE__ */ new Map();
   queryFn;
   save() {
-    (0, import_fs3.writeFileSync)(this.file, JSON.stringify(this.sessions, null, 2), { mode: 384 });
+    (0, import_fs4.writeFileSync)(this.file, JSON.stringify(this.sessions, null, 2), { mode: 384 });
   }
   async query() {
     if (this.queryFn) return this.queryFn;
@@ -11780,7 +11942,7 @@ var ClaudeProvider = class extends import_events.EventEmitter {
       updatedAt: s.updatedAt,
       createdAt: s.createdAt,
       workspacePath: s.cwd,
-      workspaceName: (0, import_path3.basename)(s.cwd),
+      workspaceName: (0, import_path4.basename)(s.cwd),
       repo: null,
       branch: null,
       pendingApprovals: this.book.pending(id)
@@ -11927,7 +12089,7 @@ var ClaudeProvider = class extends import_events.EventEmitter {
       this.sessions[sessionId] = {
         sessionId,
         cwd,
-        title: `Claude CLI (${(0, import_path3.basename)(cwd) || "terminal"})`,
+        title: `Claude CLI (${(0, import_path4.basename)(cwd) || "terminal"})`,
         createdAt: at,
         updatedAt: at
       };
@@ -11972,9 +12134,9 @@ var ClaudeProvider = class extends import_events.EventEmitter {
 
 // src/live/agents/api.ts
 var import_events2 = require("events");
-var import_child_process3 = require("child_process");
-var import_fs4 = require("fs");
-var import_path4 = require("path");
+var import_child_process4 = require("child_process");
+var import_fs5 = require("fs");
+var import_path5 = require("path");
 var MODEL_API_PRESETS = [
   { id: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", needsKey: true, keyUrl: "https://platform.deepseek.com/api_keys" },
   { id: "qwen", label: "Qwen", baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", model: "qwen3-coder-plus", needsKey: true, keyUrl: "https://modelstudio.console.alibabacloud.com/" },
@@ -11985,15 +12147,15 @@ var MODEL_API_PRESETS = [
 ];
 function loadModelApis(dir) {
   try {
-    const f = (0, import_path4.join)(dir, "models.json");
-    const list = (0, import_fs4.existsSync)(f) ? JSON.parse((0, import_fs4.readFileSync)(f, "utf8")) : [];
+    const f = (0, import_path5.join)(dir, "models.json");
+    const list = (0, import_fs5.existsSync)(f) ? JSON.parse((0, import_fs5.readFileSync)(f, "utf8")) : [];
     return Array.isArray(list) ? list.filter((c) => c && c.id && c.baseUrl && c.model) : [];
   } catch {
     return [];
   }
 }
 function saveModelApis(dir, list) {
-  (0, import_fs4.writeFileSync)((0, import_path4.join)(dir, "models.json"), JSON.stringify(list, null, 2), { mode: 384 });
+  (0, import_fs5.writeFileSync)((0, import_path5.join)(dir, "models.json"), JSON.stringify(list, null, 2), { mode: 384 });
 }
 function upsertModelApi(dir, p) {
   const id = String(p.id ?? "").trim();
@@ -12037,9 +12199,9 @@ var MAX_READ = 6e4;
 var MAX_STEPS = 40;
 function insideProject(cwd, p) {
   const rel = String(p ?? ".").trim() || ".";
-  const full = (0, import_path4.resolve)(cwd, rel);
-  const r = (0, import_path4.relative)(cwd, full);
-  if (r === ".." || r.startsWith(`..${import_path4.sep}`) || (0, import_path4.isAbsolute)(r)) throw new Error("That path is outside the project folder");
+  const full = (0, import_path5.resolve)(cwd, rel);
+  const r = (0, import_path5.relative)(cwd, full);
+  if (r === ".." || r.startsWith(`..${import_path5.sep}`) || (0, import_path5.isAbsolute)(r)) throw new Error("That path is outside the project folder");
   return full;
 }
 function searchProject(cwd, query) {
@@ -12047,22 +12209,22 @@ function searchProject(cwd, query) {
   const out = [];
   const walk = (dir, depth) => {
     if (out.length >= 80 || depth > 8) return;
-    for (const name of (0, import_fs4.readdirSync)(dir)) {
+    for (const name of (0, import_fs5.readdirSync)(dir)) {
       if (out.length >= 80) return;
       if (SKIP_DIRS.has(name) || name.startsWith(".env")) continue;
-      const f = (0, import_path4.join)(dir, name);
+      const f = (0, import_path5.join)(dir, name);
       let st;
       try {
-        st = (0, import_fs4.statSync)(f);
+        st = (0, import_fs5.statSync)(f);
       } catch {
         continue;
       }
       if (st.isDirectory()) walk(f, depth + 1);
       else if (st.size < 1e6) {
-        const text = (0, import_fs4.readFileSync)(f, "utf8");
+        const text = (0, import_fs5.readFileSync)(f, "utf8");
         if (text.includes("\0")) continue;
         text.split("\n").forEach((line, i) => {
-          if (out.length < 80 && line.toLowerCase().includes(q)) out.push(`${(0, import_path4.relative)(cwd, f)}:${i + 1}: ${line.trim().slice(0, 200)}`);
+          if (out.length < 80 && line.toLowerCase().includes(q)) out.push(`${(0, import_path5.relative)(cwd, f)}:${i + 1}: ${line.trim().slice(0, 200)}`);
         });
       }
     }
@@ -12074,7 +12236,7 @@ function runShell(cwd, command, signal) {
   return new Promise((resolvePromise) => {
     const shell = process.platform === "win32" ? "cmd.exe" : process.env["SHELL"] || "/bin/sh";
     const args = process.platform === "win32" ? ["/d", "/s", "/c", command] : ["-lc", command];
-    const child = (0, import_child_process3.spawn)(shell, args, { cwd, env: process.env, signal, windowsHide: true });
+    const child = (0, import_child_process4.spawn)(shell, args, { cwd, env: process.env, signal, windowsHide: true });
     let out = "";
     const add = (d) => {
       out += d.toString();
@@ -12103,9 +12265,9 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
     this.id = `api:${cfg.id}`;
     this.label = cfg.label;
     this.prefix = `api:${cfg.id}:`;
-    this.file = (0, import_path4.join)(dir, "api-sessions", `${cfg.id}.json`);
+    this.file = (0, import_path5.join)(dir, "api-sessions", `${cfg.id}.json`);
     try {
-      this.sessions = (0, import_fs4.existsSync)(this.file) ? JSON.parse((0, import_fs4.readFileSync)(this.file, "utf8")) : {};
+      this.sessions = (0, import_fs5.existsSync)(this.file) ? JSON.parse((0, import_fs5.readFileSync)(this.file, "utf8")) : {};
     } catch {
       this.sessions = {};
     }
@@ -12120,9 +12282,9 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
   file;
   running = /* @__PURE__ */ new Map();
   save() {
-    (0, import_fs4.mkdirSync)((0, import_path4.dirname)(this.file), { recursive: true, mode: 448 });
+    (0, import_fs5.mkdirSync)((0, import_path5.dirname)(this.file), { recursive: true, mode: 448 });
     for (const s of Object.values(this.sessions)) s.items = this.book.list(this.prefix + s.id).slice(-400);
-    (0, import_fs4.writeFileSync)(this.file, JSON.stringify(this.sessions), { mode: 384 });
+    (0, import_fs5.writeFileSync)(this.file, JSON.stringify(this.sessions), { mode: 384 });
   }
   async available() {
     if (this.cfg.apiKey) return true;
@@ -12148,7 +12310,7 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
       updatedAt: s.updatedAt,
       createdAt: s.createdAt,
       workspacePath: s.cwd,
-      workspaceName: (0, import_path4.basename)(s.cwd),
+      workspaceName: (0, import_path5.basename)(s.cwd),
       repo: null,
       branch: null,
       pendingApprovals: this.book.pending(id)
@@ -12246,7 +12408,7 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
   }
   async runTool(id, s, name, args, signal) {
     const cwd = s.cwd;
-    const rel = (p) => (0, import_path4.relative)(cwd, insideProject(cwd, p)) || ".";
+    const rel = (p) => (0, import_path5.relative)(cwd, insideProject(cwd, p)) || ".";
     const title = name === "run_command" ? String(args.command ?? "") : name === "search" ? `Search ${args.query ?? ""}` : name === "list_files" ? `List ${rel(args.path)}` : `${name === "read_file" ? "Read" : name === "write_file" ? "Write" : "Edit"} ${rel(args.path)}`;
     const step = this.put(id, { kind: "tool", at: nowIso(), tool: toolKind2(name), title, status: "running" });
     const finish = (status2, detail, exitCode) => this.put(id, { ...step, status: status2, detail: tailText(detail), ...exitCode !== void 0 ? { exitCode } : {} });
@@ -12254,14 +12416,14 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
       switch (name) {
         case "list_files": {
           const dir = insideProject(cwd, args.path);
-          const names = (0, import_fs4.readdirSync)(dir).filter((n) => !SKIP_DIRS.has(n)).slice(0, 300).map((n) => (0, import_fs4.statSync)((0, import_path4.join)(dir, n)).isDirectory() ? `${n}/` : n);
+          const names = (0, import_fs5.readdirSync)(dir).filter((n) => !SKIP_DIRS.has(n)).slice(0, 300).map((n) => (0, import_fs5.statSync)((0, import_path5.join)(dir, n)).isDirectory() ? `${n}/` : n);
           finish("done");
           return names.join("\n") || "(empty)";
         }
         case "read_file": {
           const f = insideProject(cwd, args.path);
-          if ((0, import_path4.basename)(f).startsWith(".env")) throw new Error("Pulsar does not let agents read .env files (they hold secrets)");
-          const text = (0, import_fs4.readFileSync)(f, "utf8");
+          if ((0, import_path5.basename)(f).startsWith(".env")) throw new Error("Pulsar does not let agents read .env files (they hold secrets)");
+          const text = (0, import_fs5.readFileSync)(f, "utf8");
           finish("done");
           return text.length > MAX_READ ? `${text.slice(0, MAX_READ)}
 \u2026(truncated, ${text.length} characters)` : text;
@@ -12276,7 +12438,7 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
           const f = insideProject(cwd, args.path);
           let next;
           if (name === "edit_file") {
-            const cur = (0, import_fs4.readFileSync)(f, "utf8");
+            const cur = (0, import_fs5.readFileSync)(f, "utf8");
             const oldText = String(args.old_text ?? "");
             const n = oldText ? cur.split(oldText).length - 1 : 0;
             if (n !== 1) throw new Error(n ? "old_text appears more than once; include more surrounding lines" : "old_text was not found in the file");
@@ -12289,8 +12451,8 @@ ${next.slice(0, 800)}`;
             finish("canceled", "Denied on the phone");
             return "The owner denied this change.";
           }
-          (0, import_fs4.mkdirSync)((0, import_path4.dirname)(f), { recursive: true });
-          (0, import_fs4.writeFileSync)(f, next);
+          (0, import_fs5.mkdirSync)((0, import_path5.dirname)(f), { recursive: true });
+          (0, import_fs5.writeFileSync)(f, next);
           finish("done");
           return "Done.";
         }
@@ -12359,11 +12521,44 @@ ${out.slice(-2e4)}`;
 };
 
 // src/live/service.ts
+var cachedDarwinMac = null;
 function primaryMacAddress() {
-  for (const list of Object.values((0, import_os3.networkInterfaces)())) {
+  const ifaces = (0, import_os4.networkInterfaces)();
+  const isRealMac = (m) => !!m && m !== "00:00:00:00:00:00" && m !== "02:00:00:00:00:00";
+  const entries = Object.entries(ifaces).sort(([a], [b]) => {
+    const score = (n) => /^(en0|eth0|wi-fi|ethernet)$/i.test(n) ? 0 : /^(en|eth|wlan|wl)/i.test(n) ? 1 : 2;
+    return score(a) - score(b);
+  });
+  let firstActiveName = null;
+  for (const [name, list] of entries) {
     for (const a of list ?? []) {
-      if (!a.internal && a.mac && a.mac !== "00:00:00:00:00:00") return a.mac.toUpperCase();
+      if (!a.internal && a.family === "IPv4") {
+        if (!firstActiveName) firstActiveName = name;
+        if (isRealMac(a.mac)) return a.mac.toUpperCase();
+      }
     }
+  }
+  for (const [, list] of entries) {
+    for (const a of list ?? []) {
+      if (!a.internal && isRealMac(a.mac)) return a.mac.toUpperCase();
+    }
+  }
+  if (process.platform === "darwin") {
+    if (cachedDarwinMac && Date.now() - cachedDarwinMac.at < 6e4) return cachedDarwinMac.mac;
+    const candidates = [firstActiveName, "en0", "en1"].filter((n, i, arr) => !!n && arr.indexOf(n) === i);
+    for (const iface of candidates) {
+      try {
+        const res = (0, import_child_process5.spawnSync)("ifconfig", [iface], { encoding: "utf8", timeout: 1500 });
+        const m = (res.stdout ?? "").match(/\bether\s+([0-9a-f]{2}(?::[0-9a-f]{2}){5})\b/i);
+        if (m && isRealMac(m[1])) {
+          const mac = m[1].toUpperCase();
+          cachedDarwinMac = { at: Date.now(), mac };
+          return mac;
+        }
+      } catch {
+      }
+    }
+    cachedDarwinMac = { at: Date.now(), mac: null };
   }
   return null;
 }
@@ -12518,6 +12713,7 @@ var AgentDeckService = class extends import_events3.EventEmitter {
   liveChefEnabled = process.env["NODE_ENV"] !== "test" && !process.execArgv.includes("--test");
   chefTimers = /* @__PURE__ */ new Map();
   pendingStarts = /* @__PURE__ */ new Map();
+  sendQueue = /* @__PURE__ */ new Map();
   ensureChefTimer(id, initialChefIdx) {
     const existing = this.chefTimers.get(id);
     if (existing) return existing;
@@ -12561,8 +12757,15 @@ var AgentDeckService = class extends import_events3.EventEmitter {
       this.publishList(true);
     }
     let t = this.trackers.get(id);
-    const baseCount = Math.max(t?.stepCount ?? 0, s?.stepCount ?? 0);
+    const baseCount = s?.stepCount ?? t?.stepCount ?? 0;
     if (!t) t = this.createTracker(id, Math.max(0, baseCount - INITIAL_WINDOW));
+    else if (t.unsettledFrom > baseCount) {
+      t.items.clear();
+      t.raw.clear();
+      t.firstLoaded = Math.max(0, baseCount - INITIAL_WINDOW);
+      t.unsettledFrom = t.firstLoaded;
+      t.stepCount = t.firstLoaded;
+    }
     const userIdx = baseCount;
     const chefIdx = baseCount + 1;
     const at = (/* @__PURE__ */ new Date()).toISOString();
@@ -12596,16 +12799,20 @@ var AgentDeckService = class extends import_events3.EventEmitter {
       const tr = this.trackers.get(id);
       const existing = tr?.items.get(state.chefIdx);
       if (tr && existing && existing.kind === "tool" && existing.title.includes("\u{1F468}\u200D\u{1F373}")) {
-        const doneItem = {
-          kind: "tool",
-          idx: state.chefIdx,
-          at: (/* @__PURE__ */ new Date()).toISOString(),
-          tool: "other",
-          status: "done",
-          title: "\u{1F468}\u200D\u{1F373} Recipes checked \xB7 Ingredients mixed & served \u2728"
-        };
-        tr.items.set(state.chefIdx, doneItem);
-        this.emit("items", { id, items: [doneItem] });
+        if (state.chefIdx > tr.stepCount + 2) {
+          tr.items.delete(state.chefIdx);
+        } else {
+          const doneItem = {
+            kind: "tool",
+            idx: state.chefIdx,
+            at: (/* @__PURE__ */ new Date()).toISOString(),
+            tool: "other",
+            status: "done",
+            title: "\u{1F468}\u200D\u{1F373} Recipes checked \xB7 Ingredients mixed & served \u2728"
+          };
+          tr.items.set(state.chefIdx, doneItem);
+          this.emit("items", { id, items: [doneItem] });
+        }
       }
     }
   }
@@ -12635,9 +12842,9 @@ var AgentDeckService = class extends import_events3.EventEmitter {
     if (!this.sleepProc && process.env["NODE_ENV"] !== "test") {
       try {
         if (process.platform === "darwin") {
-          this.sleepProc = (0, import_child_process4.spawn)("caffeinate", ["-di"], { stdio: "ignore" });
+          this.sleepProc = (0, import_child_process5.spawn)("caffeinate", ["-di"], { stdio: "ignore" });
         } else if (process.platform === "linux") {
-          this.sleepProc = (0, import_child_process4.spawn)("systemd-inhibit", ["--what=idle:sleep", "sleep", "infinity"], { stdio: "ignore" });
+          this.sleepProc = (0, import_child_process5.spawn)("systemd-inhibit", ["--what=idle:sleep", "sleep", "infinity"], { stdio: "ignore" });
         }
         this.sleepProc?.on("error", () => {
           this.sleepProc = null;
@@ -12749,14 +12956,34 @@ var AgentDeckService = class extends import_events3.EventEmitter {
         const status2 = runStatus(s.status);
         const tracker = this.trackers.get(id);
         if (status2 === "running" || status2 === "busy" || before && runStatus(before.status) !== "idle" || tracker && (tracker.subscribers > 0 || tracker.unsettledFrom < (s.stepCount ?? 0))) {
-          const t = tracker ?? this.createTracker(id, Math.max(0, (s.stepCount ?? 0) - 30));
-          if ((s.stepCount ?? 0) !== t.stepCount || status2 !== "idle" || t.unsettledFrom < t.stepCount) {
+          const remoteCount = s.stepCount ?? 0;
+          const t = tracker ?? this.createTracker(id, Math.max(0, remoteCount - 30));
+          if (remoteCount > 0 && t.unsettledFrom > remoteCount) {
+            t.items.clear();
+            t.raw.clear();
+            t.firstLoaded = Math.max(0, remoteCount - INITIAL_WINDOW);
+            t.unsettledFrom = t.firstLoaded;
+            t.stepCount = t.firstLoaded;
+          }
+          if (remoteCount !== t.stepCount || status2 !== "idle" || t.unsettledFrom < t.stepCount) {
             await this.refreshTracker(t).catch(() => void 0);
           }
         }
         if (before && runStatus(before.status) === "running" && status2 === "idle") {
           this.stopChefAnimation(id, true);
-          void this.notify("Agent finished", "Your task is done. Open Pulsar to see the result.", id);
+          const q = this.sendQueue.get(id);
+          if (q?.length) {
+            const next = q.shift();
+            if (!q.length) this.sendQueue.delete(id);
+            void this.dispatchQueuedMessage(id, next);
+          } else {
+            void this.notify("Agent finished", "Your task is done. Open Pulsar to see the result.", id);
+          }
+        } else if (status2 === "idle" && this.sendQueue.get(id)?.length) {
+          const q = this.sendQueue.get(id);
+          const next = q.shift();
+          if (!q.length) this.sendQueue.delete(id);
+          void this.dispatchQueuedMessage(id, next);
         } else if (status2 === "idle" && this.chefTimers.has(id)) {
           const st = this.chefTimers.get(id);
           if (Date.now() - st.startedAt > 4e3) this.stopChefAnimation(id, true);
@@ -12936,8 +13163,8 @@ var AgentDeckService = class extends import_events3.EventEmitter {
     const counts = /* @__PURE__ */ new Map();
     for (const c of convs) {
       if (!c.workspacePath) continue;
-      const parent = (0, import_path5.dirname)(c.workspacePath);
-      if (parent && parent !== "/" && (0, import_fs5.existsSync)(parent)) {
+      const parent = (0, import_path6.dirname)(c.workspacePath);
+      if (parent && parent !== "/" && (0, import_fs6.existsSync)(parent)) {
         counts.set(parent, (counts.get(parent) ?? 0) + 1);
       }
     }
@@ -12950,9 +13177,9 @@ var AgentDeckService = class extends import_events3.EventEmitter {
       }
     }
     if (best) return best;
-    const home = (0, import_os3.homedir)();
-    for (const candidate of [(0, import_path5.join)(home, "Documents", "GitHub"), (0, import_path5.join)(home, "GitHub"), (0, import_path5.join)(home, "Projects"), (0, import_path5.join)(home, "Developer")]) {
-      if ((0, import_fs5.existsSync)(candidate)) return candidate;
+    const home = (0, import_os4.homedir)();
+    for (const candidate of [(0, import_path6.join)(home, "Documents", "GitHub"), (0, import_path6.join)(home, "GitHub"), (0, import_path6.join)(home, "Projects"), (0, import_path6.join)(home, "Developer")]) {
+      if ((0, import_fs6.existsSync)(candidate)) return candidate;
     }
     return home;
   }
@@ -12980,14 +13207,14 @@ var AgentDeckService = class extends import_events3.EventEmitter {
     if (this.liveChefEnabled) {
       const rootDir = this.defaultProjectsRoot(convs);
       try {
-        const entries = (0, import_fs5.readdirSync)(rootDir, { withFileTypes: true });
+        const entries = (0, import_fs6.readdirSync)(rootDir, { withFileTypes: true });
         for (const e of entries.slice(0, 30)) {
           if (!e.isDirectory() || e.name.startsWith(".")) continue;
-          const full = (0, import_path5.join)(rootDir, e.name);
+          const full = (0, import_path6.join)(rootDir, e.name);
           if (!map.has(full)) {
             let mtime = "1970-01-01T00:00:00.000Z";
             try {
-              mtime = (0, import_fs5.statSync)(full).mtime.toISOString();
+              mtime = (0, import_fs6.statSync)(full).mtime.toISOString();
             } catch {
             }
             map.set(full, {
@@ -13023,11 +13250,11 @@ var AgentDeckService = class extends import_events3.EventEmitter {
       const convs = await this.conversations();
       const rootDir = this.defaultProjectsRoot(convs);
       const folderName = extractNewProjectName(text, explicitName);
-      const newPath = (0, import_path5.join)(rootDir, folderName);
-      (0, import_fs5.mkdirSync)(newPath, { recursive: true });
-      if (!(0, import_fs5.existsSync)((0, import_path5.join)(newPath, ".git"))) {
+      const newPath = (0, import_path6.join)(rootDir, folderName);
+      (0, import_fs6.mkdirSync)(newPath, { recursive: true });
+      if (!(0, import_fs6.existsSync)((0, import_path6.join)(newPath, ".git"))) {
         try {
-          (0, import_child_process4.spawnSync)("git", ["init"], { cwd: newPath, stdio: "ignore" });
+          (0, import_child_process5.spawnSync)("git", ["init"], { cwd: newPath, stdio: "ignore" });
         } catch {
         }
       }
@@ -13039,7 +13266,7 @@ var AgentDeckService = class extends import_events3.EventEmitter {
     if (typeof path !== "string" || !path) throw new RpcError("workspacePath is required");
     const known = (await this.workspaces()).some((w) => w.path === path);
     if (!known) throw new RpcError("Unknown workspace");
-    if (!(0, import_fs5.existsSync)(path)) throw new RpcError("Workspace folder no longer exists");
+    if (!(0, import_fs6.existsSync)(path)) throw new RpcError("Workspace folder no longer exists");
     return path;
   }
   /** Refreshes from Antigravity once when an id isn't known yet (just started, or the host only just came up). */
@@ -13135,13 +13362,28 @@ var AgentDeckService = class extends import_events3.EventEmitter {
       return [{ base64Data: data, mimeType: mime }];
     });
   }
+  async dispatchQueuedMessage(id, msg) {
+    if (this.liveChefEnabled) this.startChefAnimation(id, msg.text, msg.images.length);
+    await this.bridge.sendMessage(id, msg.text, { model: msg.model, images: msg.images }).catch(() => void 0);
+    void this.poll();
+    setTimeout(() => void this.poll(), 400);
+    setTimeout(() => void this.poll(), 1200);
+  }
   async send(params) {
     const id = this.requireConversation(params?.id);
     const text = String(params?.text ?? "").trim();
     const images = this.parseImages(params?.images);
     if (!text && !images.length) throw new RpcError("Message is empty");
+    const model = await this.resolveModel(params?.model);
+    const status2 = runStatus(this.summaries.get(id)?.status);
+    if (status2 === "running" || status2 === "busy") {
+      const q = this.sendQueue.get(id) ?? [];
+      q.push({ text, model, images });
+      this.sendQueue.set(id, q);
+      return { ok: true, queued: true, position: q.length };
+    }
     if (this.liveChefEnabled) this.startChefAnimation(id, text, images.length);
-    await this.bridge.sendMessage(id, text, { model: await this.resolveModel(params?.model), images });
+    await this.bridge.sendMessage(id, text, { model, images });
     void this.poll();
     setTimeout(() => void this.poll(), 400);
     setTimeout(() => void this.poll(), 1200);
@@ -13176,6 +13418,7 @@ var AgentDeckService = class extends import_events3.EventEmitter {
   }
   async cancel(idArg) {
     const id = this.requireConversation(idArg);
+    this.sendQueue.delete(id);
     this.stopChefAnimation(id, true);
     await this.bridge.cancel(id);
     void this.poll();
@@ -13401,8 +13644,10 @@ var AgentDeckService = class extends import_events3.EventEmitter {
   /** Dispatches one RPC. `deviceId` is the authenticated caller. */
   async dispatch(deviceId, method, p, ctx) {
     try {
-      const FREE = ["host.info", "devices.list", "devices.revoke", "push.register"];
-      if (this.license && !FREE.includes(method)) {
+      const FREE = ["host.info", "devices.list", "devices.revoke", "push.register", "device.identify"];
+      const callerDevice = this.store.getDevice(deviceId);
+      const isAndroidBetaDevice = callerDevice?.platform === "android";
+      if (this.license && !FREE.includes(method) && !isAndroidBetaDevice) {
         const l = this.license.state();
         if (!l.active) throw new RpcError(`LICENSE_REQUIRED: ${l.message} Open the Pulsar dashboard on your computer to activate.`);
       }
@@ -13436,6 +13681,8 @@ var AgentDeckService = class extends import_events3.EventEmitter {
         }
         case "agents.list":
           return this.agents();
+        case "screenshot.latest":
+          return { screenshot: await latestComputerScreenshot() };
         case "audit.list":
           return this.governance?.list({ limit: Number(p?.limit) || 200, conversationId: typeof p?.id === "string" ? p.id : void 0 }) ?? [];
         case "rules.list":
@@ -13514,6 +13761,16 @@ var AgentDeckService = class extends import_events3.EventEmitter {
           const token = typeof p?.token === "string" ? p.token : "";
           if (token && !isExpoPushToken(token)) throw new RpcError("Invalid push token");
           this.store.updateDevice(deviceId, { pushToken: token || void 0 });
+          return { ok: true };
+        }
+        case "device.identify": {
+          const patch = {};
+          if (typeof p?.model === "string" && p.model.trim()) patch["model"] = p.model.trim().slice(0, 60);
+          if (typeof p?.brand === "string" && p.brand.trim()) patch["brand"] = p.brand.trim().slice(0, 40);
+          if (typeof p?.osVersion === "string" && p.osVersion.trim()) patch["osVersion"] = p.osVersion.trim().slice(0, 40);
+          if (typeof p?.lanIp === "string" && p.lanIp.trim()) patch["lanIp"] = p.lanIp.trim().slice(0, 64);
+          if (typeof p?.macAddress === "string" && p.macAddress.trim()) patch["macAddress"] = p.macAddress.trim().slice(0, 32);
+          if (Object.keys(patch).length) this.store.updateDevice(deviceId, patch);
           return { ok: true };
         }
         case "devices.list":
@@ -13608,7 +13865,7 @@ async function checkCompatibility(servers) {
 
 // src/live/crash.ts
 var import_https2 = require("https");
-var import_os4 = require("os");
+var import_os5 = require("os");
 var ENDPOINT = process.env["AGENTDECK_CRASH_URL"] || "https://agentdeck-telemetry.finnova.com.au/v1/crash";
 function scrub(text) {
   return text.replace(/\/(Users|home)\/[^/\s'"]+/g, "/~").replace(/[A-Za-z]:\\Users\\[^\\\s'"]+/g, "~").replace(/[^\s@'"]+@[^\s@'"]+\.[a-z]{2,}/gi, "<email>").replace(/\b[A-Za-z0-9_\-+/=]{32,}\b/g, "<redacted>");
@@ -13620,7 +13877,7 @@ function reportCrash(error, version, fatal) {
     source: "host",
     version,
     platform: process.platform,
-    os: `${(0, import_os4.release)()} node ${process.versions.node}`,
+    os: `${(0, import_os5.release)()} node ${process.versions.node}`,
     name: scrub(e.name).slice(0, 120),
     message: scrub(e.message).slice(0, 1e3),
     stack: scrub(e.stack ?? "").slice(0, 6e3),
@@ -13649,6 +13906,8 @@ var PRICING_URL = "https://agentdeck.finnova.com.au/pricing";
 var ACCOUNT_URL = "https://agentdeck.finnova.com.au/account";
 var LICENSE_PUBLIC_KEY = process.env["AGENTDECK_LICENSE_PUBLIC_KEY"] || "Gc8uSIbd/Xm19SF9W2dzfwuMC++bsmQ8+RhAq5wQtyk=";
 var REFRESH_MS = 12 * 3600 * 1e3;
+var LOCAL_TRIAL_DAYS = 14;
+var LOCAL_TRIAL_MS = LOCAL_TRIAL_DAYS * 86400 * 1e3;
 var OFFLINE_GRACE_MS = 14 * 86400 * 1e3;
 var PAST_DUE_GRACE_MS = 7 * 86400 * 1e3;
 function normalizeKey(k) {
@@ -13698,7 +13957,25 @@ var LicenseManager = class {
     let active = false;
     let message = "";
     if (!s) {
-      message = key ? "This license key could not be verified yet." : "No license on this computer yet.";
+      if (!key && required && this.cache.trialStartedAt) {
+        const trialEnd = this.cache.trialStartedAt + LOCAL_TRIAL_MS;
+        const remainingMs = trialEnd - this.now();
+        if (remainingMs > 0) {
+          const daysLeft = Math.max(1, Math.ceil(remainingMs / 864e5));
+          return {
+            required,
+            active: true,
+            status: "trialing",
+            key: null,
+            email: null,
+            renewsAt: new Date(trialEnd).toISOString(),
+            message: `Free ${LOCAL_TRIAL_DAYS}-day trial (${daysLeft} day${daysLeft === 1 ? "" : "s"} left) \u2014 no card required.`
+          };
+        }
+        message = `Your ${LOCAL_TRIAL_DAYS}-day free trial has ended. Choose a Pulsar Pro plan to keep going.`;
+      } else {
+        message = key ? "This license key could not be verified yet." : "No license on this computer yet.";
+      }
     } else if ((s.status === "active" || s.status === "trialing") && age < OFFLINE_GRACE_MS) {
       active = true;
       message = "Pulsar Pro is active.";
@@ -13752,7 +14029,12 @@ var LicenseManager = class {
     try {
       const h = await (await this.f(`${this.url}/health`)).json();
       const testing = process.env["AGENTDECK_LICENSE_TEST"] === "1";
-      if (h.configured && (h.live || testing) && !this.cache.enforced) this.save({ enforced: true });
+      if (h.configured && (h.live || testing)) {
+        const patch = {};
+        if (!this.cache.enforced) patch.enforced = true;
+        if (!this.cache.trialStartedAt) patch.trialStartedAt = this.now();
+        if (Object.keys(patch).length) this.save(patch);
+      }
     } catch {
     }
     if (this.cache.key) await this.activate(this.cache.key).catch(() => void 0);
@@ -13773,9 +14055,9 @@ var LicenseManager = class {
 };
 
 // src/live/store.ts
-var import_fs6 = require("fs");
-var import_os5 = require("os");
-var import_path6 = require("path");
+var import_fs7 = require("fs");
+var import_os6 = require("os");
+var import_path7 = require("path");
 var Store = class {
   dir;
   hostFile;
@@ -13784,17 +14066,17 @@ var Store = class {
   /** True when this run created the host identity (first launch). */
   isNew;
   devices;
-  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path6.join)((0, import_os5.homedir)(), ".agentdeck")) {
+  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path7.join)((0, import_os6.homedir)(), ".agentdeck")) {
     this.dir = dir;
-    (0, import_fs6.mkdirSync)(dir, { recursive: true, mode: 448 });
-    (0, import_fs6.chmodSync)(dir, 448);
-    this.hostFile = (0, import_path6.join)(dir, "host.json");
-    this.devicesFile = (0, import_path6.join)(dir, "devices.json");
+    (0, import_fs7.mkdirSync)(dir, { recursive: true, mode: 448 });
+    (0, import_fs7.chmodSync)(dir, 448);
+    this.hostFile = (0, import_path7.join)(dir, "host.json");
+    this.devicesFile = (0, import_path7.join)(dir, "devices.json");
     const saved = this.read(this.hostFile);
     this.isNew = !saved;
     this.config = saved ?? {
       hostId: randomId(12),
-      hostName: (0, import_os5.hostname)().replace(/\.local$/, ""),
+      hostName: (0, import_os6.hostname)().replace(/\.local$/, ""),
       relayToken: randomId(32)
     };
     if (process.env["AGENTDECK_RELAY_URL"]) this.config.relayUrl = process.env["AGENTDECK_RELAY_URL"];
@@ -13803,16 +14085,16 @@ var Store = class {
   }
   read(file) {
     try {
-      return (0, import_fs6.existsSync)(file) ? JSON.parse((0, import_fs6.readFileSync)(file, "utf8")) : null;
+      return (0, import_fs7.existsSync)(file) ? JSON.parse((0, import_fs7.readFileSync)(file, "utf8")) : null;
     } catch {
       return null;
     }
   }
   write(file, value) {
     const tmp = `${file}.tmp`;
-    (0, import_fs6.writeFileSync)(tmp, JSON.stringify(value, null, 2), { mode: 384 });
-    (0, import_fs6.renameSync)(tmp, file);
-    (0, import_fs6.chmodSync)(file, 384);
+    (0, import_fs7.writeFileSync)(tmp, JSON.stringify(value, null, 2), { mode: 384 });
+    (0, import_fs7.renameSync)(tmp, file);
+    (0, import_fs7.chmodSync)(file, 384);
   }
   saveConfig(patch) {
     this.config = { ...this.config, ...patch };
@@ -13843,8 +14125,8 @@ var Store = class {
 
 // src/live/server.ts
 var import_http2 = require("http");
-var import_os6 = require("os");
-var import_child_process5 = require("child_process");
+var import_os7 = require("os");
+var import_child_process6 = require("child_process");
 var import_qrcode = __toESM(require_lib());
 
 // ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/wrapper.mjs
@@ -13865,6 +14147,11 @@ var MAX_PREAUTH_FRAME = 16 * 1024;
 var HANDSHAKE_TIMEOUT_MS = 1e4;
 var LAST_SEEN_WRITE_MS = 5 * 60 * 1e3;
 var MAX_PAIR_FAILURES = 20;
+function cleanRemoteIp(remote) {
+  if (!remote) return void 0;
+  const cleaned = remote.replace(/^relay:/, "").replace(/^::ffff:/, "").trim();
+  return cleaned && cleaned !== "?" ? cleaned.slice(0, 64) : void 0;
+}
 var PairingManager = class {
   constructor(ttlMs = 10 * 60 * 1e3) {
     this.ttlMs = ttlMs;
@@ -13972,12 +14259,19 @@ var PhoneSession = class {
     if (phoneEph.length !== 32) return this.fail("bad_frame", "Bad pairing request");
     const mine = newEphemeralKeyPair();
     const sessionKey = deriveSessionKey(mine.secretKey, phoneEph, key);
+    const remoteIp = cleanRemoteIp(this.link.remote);
     this.store.upsertDevice({
       deviceId: req.deviceId,
       name: String(req.deviceName || "Phone").slice(0, 60),
       platform: String(req.platform || "unknown").slice(0, 20),
       key: toBase64(sessionKey),
-      pairedAt: (/* @__PURE__ */ new Date()).toISOString()
+      pairedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      lastSeen: (/* @__PURE__ */ new Date()).toISOString(),
+      ...remoteIp ? { lastIp: remoteIp } : {},
+      ...req.lanIp ? { lanIp: String(req.lanIp).slice(0, 64) } : {},
+      ...req.model ? { model: String(req.model).slice(0, 60) } : {},
+      ...req.brand ? { brand: String(req.brand).slice(0, 40) } : {},
+      ...req.osVersion ? { osVersion: String(req.osVersion).slice(0, 40) } : {}
     });
     this.pairing.close();
     const res = {
@@ -14003,8 +14297,9 @@ var PhoneSession = class {
     this.lastSeq = 0;
     this.hostSeq = 0;
     clearTimeout(this.handshakeTimer);
-    if (!device.lastSeen || Date.now() - Date.parse(device.lastSeen) > LAST_SEEN_WRITE_MS) {
-      this.store.updateDevice(device.deviceId, { lastSeen: (/* @__PURE__ */ new Date()).toISOString() });
+    const remoteIp = cleanRemoteIp(this.link.remote);
+    if (!device.lastSeen || Date.now() - Date.parse(device.lastSeen) > LAST_SEEN_WRITE_MS || remoteIp && device.lastIp !== remoteIp) {
+      this.store.updateDevice(device.deviceId, { lastSeen: (/* @__PURE__ */ new Date()).toISOString(), ...remoteIp ? { lastIp: remoteIp } : {} });
     }
     this.service.on("conversations", this.onConversations);
     this.service.on("items", this.onItems);
@@ -14087,13 +14382,27 @@ var RelayLink = class {
     const target = `${this.url.replace(/\/+$/, "")}/host?hostId=${encodeURIComponent(this.hostId)}`;
     const ws = new wrapper_default(target, { headers: { Authorization: `Bearer ${this.token}` }, maxPayload: 32 * 1024 * 1024 });
     this.ws = ws;
-    const ping = setInterval(() => ws.readyState === wrapper_default.OPEN && ws.ping(), 25e3);
+    let alive = true;
+    const ping = setInterval(() => {
+      if (ws.readyState !== wrapper_default.OPEN) return;
+      if (!alive) {
+        ws.terminate();
+        return;
+      }
+      alive = false;
+      ws.ping();
+    }, 2e4);
+    ws.on("pong", () => {
+      alive = true;
+    });
     ws.on("open", () => {
+      alive = true;
       this.status = "connected";
       this.lastError = null;
       this.retry = 1e3;
     });
     ws.on("message", (data) => {
+      alive = true;
       let f;
       try {
         f = JSON.parse(data.toString());
@@ -14135,7 +14444,7 @@ var RelayLink = class {
       this.status = this.stopped ? "off" : "error";
       if (!this.stopped) {
         this.timer = setTimeout(() => this.connect(), this.retry);
-        this.retry = Math.min(this.retry * 2, 6e4);
+        this.retry = Math.min(this.retry * 2, 1e4);
       }
     });
   }
@@ -14187,8 +14496,23 @@ async function refresh(){
    '<div class="row"><span><span class="dot" style="background:'+(ag?'var(--ok)':'var(--bad)')+'"></span>Antigravity</span><span>'+(ag?esc(s.antigravity.servers+' window(s), '+s.conversations+' conversations'):esc(s.antigravity.error||'Not running'))+'</span></div>'+
    '<div class="row"><span>Phones connected now</span><span>'+s.connectedPhones+'</span></div>'+
    '<div class="row"><span>LAN address</span><code>'+esc(s.urls.join('  ')||'No network')+'</code></div>'+
+   (s.macAddress?'<div class="row"><span>MAC address</span><code>'+esc(s.macAddress)+'</code></div>':'')+
    '<div class="row"><span>Host version</span><span>'+esc(s.version)+'</span></div>';
-  $('devices').innerHTML=s.devices.length?s.devices.map(d=>'<div class="row"><span><b>'+esc(d.name)+'</b> <span class="muted">'+esc(d.platform)+' \xB7 paired '+esc(new Date(d.pairedAt).toLocaleDateString())+(d.lastSeen?' \xB7 seen '+esc(new Date(d.lastSeen).toLocaleString()):'')+(d.push?' \xB7 notifications on':'')+'</span></span><button class="ghost" data-id="'+esc(d.deviceId)+'">Remove</button></div>').join(''):'None yet.';
+  $('devices').innerHTML=s.devices.length?s.devices.map(d=>{
+    const hw=[d.brand,d.model].filter(Boolean).join(' ');
+    const ip=d.lastIp&&d.lanIp&&d.lastIp!==d.lanIp?(d.lastIp+' (LAN '+d.lanIp+')'):(d.lastIp||d.lanIp||'');
+    const meta=[
+      hw||d.platform,
+      d.osVersion?(d.platform+' '+d.osVersion):'',
+      ip?('IP '+ip):'',
+      d.macAddress?('MAC '+d.macAddress):'',
+      'ID '+String(d.deviceId||'').slice(0,10),
+      'paired '+new Date(d.pairedAt).toLocaleDateString(),
+      d.lastSeen?('seen '+new Date(d.lastSeen).toLocaleString()):'',
+      d.push?'notifications on':''
+    ].filter(Boolean).join(' \xB7 ');
+    return '<div class="row"><span><b>'+esc(d.name)+'</b><br><span class="muted">'+esc(meta)+'</span></span><button class="ghost" data-id="'+esc(d.deviceId)+'">Remove</button></div>';
+  }).join(''):'None yet.';
   document.querySelectorAll('#devices button').forEach(b=>b.onclick=async()=>{if(confirm('Remove this phone? It will need to pair again.')){await post('/local/devices/revoke',{deviceId:b.dataset.id});refresh();}});
   if($('qr')&&!s.pairing.active){clearInterval(timer);$('pair').innerHTML='<p><b>Phone paired.</b> <button id="pairBtn3">Pair another</button></p>';$('pairBtn3').onclick=$('pairBtn').onclick;}
   $('agents').innerHTML=(s.agents||[]).map(a=>'<div class="row"><span><span class="dot" style="background:var(--ok)"></span>'+esc(a.label)+'</span></div>').join('');
@@ -14286,7 +14610,7 @@ load();watch();
 // src/live/server.ts
 function lanAddresses() {
   const out = [];
-  for (const list of Object.values((0, import_os6.networkInterfaces)())) {
+  for (const list of Object.values((0, import_os7.networkInterfaces)())) {
     for (const a of list ?? []) {
       if (a.family === "IPv4" && !a.internal && !a.address.startsWith("169.254.")) out.push(a.address);
     }
@@ -14561,7 +14885,7 @@ var HostServer = class {
     const cmd2 = process.platform === "darwin" ? ["dns-sd", ["-R", name, "_agentdeck._tcp", "local", String(this.port), ...txt]] : process.platform === "linux" ? ["avahi-publish-service", [name, "_agentdeck._tcp", String(this.port), ...txt]] : null;
     if (!cmd2) return;
     try {
-      this.advertiser = (0, import_child_process5.spawn)(cmd2[0], cmd2[1], { stdio: "ignore" });
+      this.advertiser = (0, import_child_process6.spawn)(cmd2[0], cmd2[1], { stdio: "ignore" });
       this.advertiser.on("error", () => this.advertiser = null);
     } catch {
       this.advertiser = null;
@@ -14578,8 +14902,8 @@ var HostServer = class {
 };
 
 // src/live/governance.ts
-var import_fs7 = require("fs");
-var import_path7 = require("path");
+var import_fs8 = require("fs");
+var import_path8 = require("path");
 var MAX_AUDIT_BYTES = 5 * 1024 * 1024;
 var SHELL_CHAIN_RE = /[;&|`$<>]|\r|\n/;
 var SAFE_COMMAND_RE = /^\s*(ls|pwd|whoami|date|uname|which|cat|head|tail|wc|stat|file|grep|rg|git\s+(status|diff|log|branch|show|rev-parse)|npm\s+(test|run\s+(test|lint|typecheck|check))|pnpm\s+(test|lint|typecheck|check)|yarn\s+(test|lint|typecheck)|npx\s+(tsc|jest|vitest)|pytest|cargo\s+(test|check)|go\s+test)(\s+[-a-zA-Z0-9_./:@=]+)*\s*$/i;
@@ -14599,17 +14923,17 @@ var Governance = class {
   autoApproveSafe = false;
   votes = /* @__PURE__ */ new Map();
   constructor(dir) {
-    this.auditFile = (0, import_path7.join)(dir, "audit.jsonl");
-    this.rulesFile = (0, import_path7.join)(dir, "rules.json");
-    this.prefsFile = (0, import_path7.join)(dir, "governance-prefs.json");
+    this.auditFile = (0, import_path8.join)(dir, "audit.jsonl");
+    this.rulesFile = (0, import_path8.join)(dir, "rules.json");
+    this.prefsFile = (0, import_path8.join)(dir, "governance-prefs.json");
     try {
-      this.rules = (0, import_fs7.existsSync)(this.rulesFile) ? JSON.parse((0, import_fs7.readFileSync)(this.rulesFile, "utf8")) : [];
+      this.rules = (0, import_fs8.existsSync)(this.rulesFile) ? JSON.parse((0, import_fs8.readFileSync)(this.rulesFile, "utf8")) : [];
     } catch {
       this.rules = [];
     }
     try {
-      if ((0, import_fs7.existsSync)(this.prefsFile)) {
-        const p = JSON.parse((0, import_fs7.readFileSync)(this.prefsFile, "utf8"));
+      if ((0, import_fs8.existsSync)(this.prefsFile)) {
+        const p = JSON.parse((0, import_fs8.readFileSync)(this.prefsFile, "utf8"));
         this.autoApproveSafe = !!p?.autoApproveSafe;
       }
     } catch {
@@ -14619,7 +14943,7 @@ var Governance = class {
   setAutoApproveSafe(enabled) {
     this.autoApproveSafe = !!enabled;
     try {
-      (0, import_fs7.writeFileSync)(this.prefsFile, JSON.stringify({ autoApproveSafe: this.autoApproveSafe }, null, 2), { mode: 384 });
+      (0, import_fs8.writeFileSync)(this.prefsFile, JSON.stringify({ autoApproveSafe: this.autoApproveSafe }, null, 2), { mode: 384 });
     } catch {
     }
     return this.autoApproveSafe;
@@ -14627,15 +14951,15 @@ var Governance = class {
   log(e) {
     const entry = { at: (/* @__PURE__ */ new Date()).toISOString(), ...e, ...e.detail ? { detail: e.detail.slice(0, 500) } : {} };
     try {
-      if ((0, import_fs7.existsSync)(this.auditFile) && (0, import_fs7.statSync)(this.auditFile).size > MAX_AUDIT_BYTES) (0, import_fs7.renameSync)(this.auditFile, this.auditFile.replace(/\.jsonl$/, ".1.jsonl"));
-      (0, import_fs7.appendFileSync)(this.auditFile, `${JSON.stringify(entry)}
+      if ((0, import_fs8.existsSync)(this.auditFile) && (0, import_fs8.statSync)(this.auditFile).size > MAX_AUDIT_BYTES) (0, import_fs8.renameSync)(this.auditFile, this.auditFile.replace(/\.jsonl$/, ".1.jsonl"));
+      (0, import_fs8.appendFileSync)(this.auditFile, `${JSON.stringify(entry)}
 `, { mode: 384 });
     } catch {
     }
   }
   list(opts = {}) {
-    if (!(0, import_fs7.existsSync)(this.auditFile)) return [];
-    const lines = (0, import_fs7.readFileSync)(this.auditFile, "utf8").trim().split("\n").filter(Boolean);
+    if (!(0, import_fs8.existsSync)(this.auditFile)) return [];
+    const lines = (0, import_fs8.readFileSync)(this.auditFile, "utf8").trim().split("\n").filter(Boolean);
     const out = [];
     for (let i = lines.length - 1; i >= 0 && out.length < (opts.limit ?? 200); i--) {
       try {
@@ -14661,7 +14985,7 @@ var Governance = class {
       return { id: String(r?.id || `rule-${i + 1}`), pattern, approvals, ...r?.label ? { label: String(r.label).slice(0, 80) } : {} };
     });
     this.rules = clean;
-    (0, import_fs7.writeFileSync)(this.rulesFile, JSON.stringify(clean, null, 2), { mode: 384 });
+    (0, import_fs8.writeFileSync)(this.rulesFile, JSON.stringify(clean, null, 2), { mode: 384 });
     return clean;
   }
   /** Approvals needed for this command / action text (0 = auto-approve, 1 = single phone, 2..5 = multi-phone quorum). */
@@ -14708,12 +15032,12 @@ var Governance = class {
 
 // src/live/agents/codex.ts
 var import_events5 = require("events");
-var import_fs8 = require("fs");
-var import_os7 = require("os");
-var import_path8 = require("path");
+var import_fs9 = require("fs");
+var import_os8 = require("os");
+var import_path9 = require("path");
 
 // src/live/agents/jsonrpc.ts
-var import_child_process6 = require("child_process");
+var import_child_process7 = require("child_process");
 var import_events4 = require("events");
 var RpcProcessError = class extends Error {
 };
@@ -14737,7 +15061,7 @@ var StdioRpc = class extends import_events4.EventEmitter {
   }
   start() {
     if (this.running) return;
-    const p = (0, import_child_process6.spawn)(this.command, this.args, { cwd: this.opts.cwd, env: { ...process.env, ...this.opts.env }, stdio: ["pipe", "pipe", "pipe"] });
+    const p = (0, import_child_process7.spawn)(this.command, this.args, { cwd: this.opts.cwd, env: { ...process.env, ...this.opts.env }, stdio: ["pipe", "pipe", "pipe"] });
     this.proc = p;
     p.stdout.setEncoding("utf8");
     p.stdout.on("data", (chunk) => this.onData(chunk));
@@ -14826,12 +15150,12 @@ var StdioRpc = class extends import_events4.EventEmitter {
 async function commandExists(cmd2) {
   const { access } = await import("fs/promises");
   const { constants } = await import("fs");
-  const { delimiter, join: join11, isAbsolute: isAbsolute3 } = await import("path");
+  const { delimiter, join: join12, isAbsolute: isAbsolute3 } = await import("path");
   if (isAbsolute3(cmd2)) return access(cmd2, constants.X_OK).then(() => true, () => false);
   const exts = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
   for (const dir of (process.env["PATH"] ?? "").split(delimiter)) {
     for (const ext of exts) {
-      if (await access(join11(dir, cmd2 + ext), constants.X_OK).then(() => true, () => false)) return true;
+      if (await access(join12(dir, cmd2 + ext), constants.X_OK).then(() => true, () => false)) return true;
     }
   }
   return false;
@@ -14859,20 +15183,20 @@ function rpcErrorText(e) {
 // src/live/agents/codex.ts
 function findExtensionCodexBin() {
   const roots = [
-    (0, import_path8.join)((0, import_os7.homedir)(), ".vscode", "extensions"),
-    (0, import_path8.join)((0, import_os7.homedir)(), ".antigravity", "extensions"),
-    (0, import_path8.join)((0, import_os7.homedir)(), ".cursor", "extensions")
+    (0, import_path9.join)((0, import_os8.homedir)(), ".vscode", "extensions"),
+    (0, import_path9.join)((0, import_os8.homedir)(), ".antigravity", "extensions"),
+    (0, import_path9.join)((0, import_os8.homedir)(), ".cursor", "extensions")
   ];
   const candidates = [];
   for (const root of roots) {
     try {
-      for (const d of (0, import_fs8.readdirSync)(root)) {
+      for (const d of (0, import_fs9.readdirSync)(root)) {
         if (!d.startsWith("openai.chatgpt-")) continue;
-        const binDir = (0, import_path8.join)(root, d, "bin");
-        if (!(0, import_fs8.existsSync)(binDir)) continue;
-        for (const arch of (0, import_fs8.readdirSync)(binDir)) {
-          const bin = (0, import_path8.join)(binDir, arch, process.platform === "win32" ? "codex.exe" : "codex");
-          if ((0, import_fs8.existsSync)(bin)) candidates.push(bin);
+        const binDir = (0, import_path9.join)(root, d, "bin");
+        if (!(0, import_fs9.existsSync)(binDir)) continue;
+        for (const arch of (0, import_fs9.readdirSync)(binDir)) {
+          const bin = (0, import_path9.join)(binDir, arch, process.platform === "win32" ? "codex.exe" : "codex");
+          if ((0, import_fs9.existsSync)(bin)) candidates.push(bin);
         }
       }
     } catch {
@@ -14912,7 +15236,7 @@ ${it.text}` };
       };
     case "fileChange": {
       const paths = (it.changes ?? []).map((c) => c.path);
-      return { kind: "tool", at, tool: "edit", title: paths.length === 1 ? `Edited ${(0, import_path8.basename)(paths[0])}` : `Edited ${paths.length} files`, detail: paths.join("\n"), status: stepState2(it.status) };
+      return { kind: "tool", at, tool: "edit", title: paths.length === 1 ? `Edited ${(0, import_path9.basename)(paths[0])}` : `Edited ${paths.length} files`, detail: paths.join("\n"), status: stepState2(it.status) };
     }
     case "mcpToolCall":
       return { kind: "tool", at, tool: "mcp", title: `${it.server}: ${it.tool}`, status: stepState2(it.status) };
@@ -14984,7 +15308,7 @@ var CodexProvider = class extends import_events5.EventEmitter {
       updatedAt: iso(t.updatedAt),
       createdAt: iso(t.createdAt),
       workspacePath: t.cwd ?? null,
-      workspaceName: t.cwd ? (0, import_path8.basename)(t.cwd) : null,
+      workspaceName: t.cwd ? (0, import_path9.basename)(t.cwd) : null,
       repo: repoFromUrl(t.gitInfo?.originUrl),
       branch: t.gitInfo?.branch ?? null,
       pendingApprovals: this.book.pending(id)
@@ -15136,8 +15460,8 @@ var CodexProvider = class extends import_events5.EventEmitter {
 
 // src/live/agents/acp.ts
 var import_events6 = require("events");
-var import_fs9 = require("fs");
-var import_path9 = require("path");
+var import_fs10 = require("fs");
+var import_path10 = require("path");
 var KNOWN_ACP_AGENTS = [
   { id: "copilot", label: "Copilot CLI", command: "copilot", args: ["--acp"] },
   { id: "cursor", label: "Cursor", command: "cursor-agent", args: ["acp"] },
@@ -15147,10 +15471,10 @@ var KNOWN_ACP_AGENTS = [
   { id: "codex-acp", label: "Codex (ACP)", command: "codex-acp", args: [] }
 ];
 function loadAcpConfig(dir) {
-  const file = (0, import_path9.join)(dir, "agents.json");
+  const file = (0, import_path10.join)(dir, "agents.json");
   let custom = [];
   try {
-    custom = (0, import_fs9.existsSync)(file) ? JSON.parse((0, import_fs9.readFileSync)(file, "utf8")) : [];
+    custom = (0, import_fs10.existsSync)(file) ? JSON.parse((0, import_fs10.readFileSync)(file, "utf8")) : [];
   } catch {
     custom = [];
   }
@@ -15168,7 +15492,7 @@ var AcpProvider = class extends import_events6.EventEmitter {
     this.id = `acp:${agent.id}`;
     this.label = agent.label;
     this.prefix = `acp:${agent.id}:`;
-    this.file = (0, import_path9.join)(storeDir, "acp-sessions.json");
+    this.file = (0, import_path10.join)(storeDir, "acp-sessions.json");
     this.sessions = this.readAll()[agent.id] ?? {};
   }
   kind = "acp";
@@ -15187,7 +15511,7 @@ var AcpProvider = class extends import_events6.EventEmitter {
   streaming = /* @__PURE__ */ new Map();
   readAll() {
     try {
-      return (0, import_fs9.existsSync)(this.file) ? JSON.parse((0, import_fs9.readFileSync)(this.file, "utf8")) : {};
+      return (0, import_fs10.existsSync)(this.file) ? JSON.parse((0, import_fs10.readFileSync)(this.file, "utf8")) : {};
     } catch {
       return {};
     }
@@ -15195,7 +15519,7 @@ var AcpProvider = class extends import_events6.EventEmitter {
   save() {
     const all = this.readAll();
     all[this.agent.id] = this.sessions;
-    (0, import_fs9.writeFileSync)(this.file, JSON.stringify(all, null, 2), { mode: 384 });
+    (0, import_fs10.writeFileSync)(this.file, JSON.stringify(all, null, 2), { mode: 384 });
   }
   available() {
     return commandExists(this.agent.command);
@@ -15232,7 +15556,7 @@ var AcpProvider = class extends import_events6.EventEmitter {
       updatedAt: s.updatedAt,
       createdAt: s.createdAt,
       workspacePath: s.cwd,
-      workspaceName: (0, import_path9.basename)(s.cwd),
+      workspaceName: (0, import_path10.basename)(s.cwd),
       repo: null,
       branch: null,
       pendingApprovals: this.book.pending(id)
@@ -15580,18 +15904,18 @@ function isSea() {
 }
 function entryCommand() {
   if (isSea()) return [process.execPath];
-  return [process.execPath, (0, import_path10.resolve)(process.argv[1])];
+  return [process.execPath, (0, import_path11.resolve)(process.argv[1])];
 }
 function install() {
   const entry = entryCommand();
-  const logDir = (0, import_path10.join)((0, import_os8.homedir)(), ".agentdeck");
-  (0, import_fs10.mkdirSync)(logDir, { recursive: true, mode: 448 });
-  (0, import_fs10.chmodSync)(logDir, 448);
+  const logDir = (0, import_path11.join)((0, import_os9.homedir)(), ".agentdeck");
+  (0, import_fs11.mkdirSync)(logDir, { recursive: true, mode: 448 });
+  (0, import_fs11.chmodSync)(logDir, 448);
   if (process.platform === "darwin") {
-    const plist = (0, import_path10.join)((0, import_os8.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
-    (0, import_fs10.mkdirSync)((0, import_path10.join)((0, import_os8.homedir)(), "Library/LaunchAgents"), { recursive: true });
+    const plist = (0, import_path11.join)((0, import_os9.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
+    (0, import_fs11.mkdirSync)((0, import_path11.join)((0, import_os9.homedir)(), "Library/LaunchAgents"), { recursive: true });
     const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-    (0, import_fs10.writeFileSync)(
+    (0, import_fs11.writeFileSync)(
       plist,
       `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -15601,24 +15925,24 @@ function install() {
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
-  <key>StandardOutPath</key><string>${esc((0, import_path10.join)(logDir, "host.log"))}</string>
-  <key>StandardErrorPath</key><string>${esc((0, import_path10.join)(logDir, "host.log"))}</string>
+  <key>StandardOutPath</key><string>${esc((0, import_path11.join)(logDir, "host.log"))}</string>
+  <key>StandardErrorPath</key><string>${esc((0, import_path11.join)(logDir, "host.log"))}</string>
 </dict></plist>
 `
     );
     try {
-      (0, import_child_process7.execFileSync)("launchctl", ["unload", plist], { stdio: "ignore" });
+      (0, import_child_process8.execFileSync)("launchctl", ["unload", plist], { stdio: "ignore" });
     } catch {
     }
-    (0, import_child_process7.execFileSync)("launchctl", ["load", "-w", plist]);
+    (0, import_child_process8.execFileSync)("launchctl", ["load", "-w", plist]);
     console.log(`Installed. Pulsar host now starts at login.
   Dashboard: http://localhost:${PORT}/
-  Logs: ${(0, import_path10.join)(logDir, "host.log")}`);
+  Logs: ${(0, import_path11.join)(logDir, "host.log")}`);
   } else if (process.platform === "linux") {
-    const dir = (0, import_path10.join)((0, import_os8.homedir)(), ".config/systemd/user");
-    (0, import_fs10.mkdirSync)(dir, { recursive: true });
-    (0, import_fs10.writeFileSync)(
-      (0, import_path10.join)(dir, "agentdeck-host.service"),
+    const dir = (0, import_path11.join)((0, import_os9.homedir)(), ".config/systemd/user");
+    (0, import_fs11.mkdirSync)(dir, { recursive: true });
+    (0, import_fs11.writeFileSync)(
+      (0, import_path11.join)(dir, "agentdeck-host.service"),
       `[Unit]
 Description=Pulsar host
 After=network-online.target
@@ -15632,23 +15956,23 @@ WantedBy=default.target
 `
     );
     try {
-      (0, import_child_process7.execFileSync)("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
-      (0, import_child_process7.execFileSync)("systemctl", ["--user", "enable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
+      (0, import_child_process8.execFileSync)("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
+      (0, import_child_process8.execFileSync)("systemctl", ["--user", "enable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
       console.log(`Installed as a systemd user service.
   Dashboard: http://localhost:${PORT}/`);
     } catch {
-      const log = (0, import_fs10.openSync)((0, import_path10.join)(logDir, "host.log"), "a");
-      (0, import_child_process7.spawn)(entry[0], [...entry.slice(1), "start"], { detached: true, stdio: ["ignore", log, log] }).unref();
+      const log = (0, import_fs11.openSync)((0, import_path11.join)(logDir, "host.log"), "a");
+      (0, import_child_process8.spawn)(entry[0], [...entry.slice(1), "start"], { detached: true, stdio: ["ignore", log, log] }).unref();
       console.log(
         `Pulsar host is running (no systemd user session here, so it won't start by itself after a restart).
   Dashboard: http://localhost:${PORT}/
   Start it again later with: ${entry.map((a) => `"${a}"`).join(" ")} start
-  Logs: ${(0, import_path10.join)(logDir, "host.log")}`
+  Logs: ${(0, import_path11.join)(logDir, "host.log")}`
       );
     }
   } else if (process.platform === "win32") {
-    const startup = (0, import_path10.join)(process.env["APPDATA"] ?? (0, import_os8.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
-    (0, import_fs10.writeFileSync)((0, import_path10.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${entry.map((a) => `""${a}""`).join(" ")} start", 0, False
+    const startup = (0, import_path11.join)(process.env["APPDATA"] ?? (0, import_os9.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
+    (0, import_fs11.writeFileSync)((0, import_path11.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${entry.map((a) => `""${a}""`).join(" ")} start", 0, False
 `);
     console.log(`Installed in your Startup folder. Sign out and back in, or run: agentdeck-host start`);
   } else {
@@ -15657,22 +15981,22 @@ WantedBy=default.target
 }
 function uninstall() {
   if (process.platform === "darwin") {
-    const plist = (0, import_path10.join)((0, import_os8.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
-    if ((0, import_fs10.existsSync)(plist)) {
+    const plist = (0, import_path11.join)((0, import_os9.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
+    if ((0, import_fs11.existsSync)(plist)) {
       try {
-        (0, import_child_process7.execFileSync)("launchctl", ["unload", "-w", plist], { stdio: "ignore" });
+        (0, import_child_process8.execFileSync)("launchctl", ["unload", "-w", plist], { stdio: "ignore" });
       } catch {
       }
-      (0, import_fs10.rmSync)(plist);
+      (0, import_fs11.rmSync)(plist);
     }
   } else if (process.platform === "linux") {
     try {
-      (0, import_child_process7.execFileSync)("systemctl", ["--user", "disable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
+      (0, import_child_process8.execFileSync)("systemctl", ["--user", "disable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
     } catch {
     }
-    (0, import_fs10.rmSync)((0, import_path10.join)((0, import_os8.homedir)(), ".config/systemd/user/agentdeck-host.service"), { force: true });
+    (0, import_fs11.rmSync)((0, import_path11.join)((0, import_os9.homedir)(), ".config/systemd/user/agentdeck-host.service"), { force: true });
   } else if (process.platform === "win32") {
-    (0, import_fs10.rmSync)((0, import_path10.join)(process.env["APPDATA"] ?? (0, import_os8.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup/AgentDeck Host.vbs"), { force: true });
+    (0, import_fs11.rmSync)((0, import_path11.join)(process.env["APPDATA"] ?? (0, import_os9.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup/AgentDeck Host.vbs"), { force: true });
   }
   console.log("Removed the Pulsar login item. Pairings in ~/.agentdeck were kept.");
 }
@@ -15704,8 +16028,8 @@ async function runningVersion() {
 }
 async function setup() {
   if (process.platform !== "win32") throw new Error("setup is for Windows; on a Mac use the Pulsar app, elsewhere run: agentdeck-host install");
-  const dir = (0, import_path10.join)(process.env["LOCALAPPDATA"] ?? (0, import_path10.join)((0, import_os8.homedir)(), "AppData", "Local"), "AgentDeck");
-  const target = (0, import_path10.join)(dir, "AgentDeck.exe");
+  const dir = (0, import_path11.join)(process.env["LOCALAPPDATA"] ?? (0, import_path11.join)((0, import_os9.homedir)(), "AppData", "Local"), "AgentDeck");
+  const target = (0, import_path11.join)(dir, "AgentDeck.exe");
   console.log("Setting up Pulsar\u2026");
   const running = await runningVersion();
   if (running && running !== HOST_VERSION) {
@@ -15714,11 +16038,11 @@ async function setup() {
     for (let i = 0; i < 20 && await runningVersion(); i++) await sleep(500);
   }
   if (running !== HOST_VERSION) {
-    (0, import_fs10.mkdirSync)(dir, { recursive: true });
-    if ((0, import_path10.resolve)(process.execPath).toLowerCase() !== (0, import_path10.resolve)(target).toLowerCase()) {
+    (0, import_fs11.mkdirSync)(dir, { recursive: true });
+    if ((0, import_path11.resolve)(process.execPath).toLowerCase() !== (0, import_path11.resolve)(target).toLowerCase()) {
       for (let i = 0; ; i++) {
         try {
-          (0, import_fs10.copyFileSync)(process.execPath, target);
+          (0, import_fs11.copyFileSync)(process.execPath, target);
           break;
         } catch (e) {
           if (i >= 10) throw new Error(`Could not copy Pulsar to ${dir}: ${e.message}`);
@@ -15726,19 +16050,19 @@ async function setup() {
         }
       }
     }
-    const startup = (0, import_path10.join)(process.env["APPDATA"] ?? (0, import_os8.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
-    (0, import_fs10.mkdirSync)(startup, { recursive: true });
+    const startup = (0, import_path11.join)(process.env["APPDATA"] ?? (0, import_os9.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
+    (0, import_fs11.mkdirSync)(startup, { recursive: true });
     const q = '""';
-    (0, import_fs10.writeFileSync)((0, import_path10.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${q}${target}${q} start", 0, False
+    (0, import_fs11.writeFileSync)((0, import_path11.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${q}${target}${q} start", 0, False
 `);
-    (0, import_child_process7.spawn)(target, ["start"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    (0, import_child_process8.spawn)(target, ["start"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
     for (let i = 0; i < 40 && !await runningVersion(); i++) await sleep(500);
   }
   const now = await runningVersion();
   if (!now) throw new Error('Pulsar did not start. Run "AgentDeck.exe start" in a terminal to see why, or contact support.');
   console.log(`Pulsar ${now} is running and starts with Windows.
   Pair your phone: http://localhost:${PORT}/pair`);
-  if (!process.argv.includes("--no-browser")) (0, import_child_process7.spawn)("cmd", ["/c", "start", "", `http://localhost:${PORT}/pair`], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  if (!process.argv.includes("--no-browser")) (0, import_child_process8.spawn)("cmd", ["/c", "start", "", `http://localhost:${PORT}/pair`], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   await sleep(3e3);
 }
 var commands = { start, pair, status, install, uninstall, doctor, activate, setup };
