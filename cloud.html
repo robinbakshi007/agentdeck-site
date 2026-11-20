@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pulsar Cloud — Run Antigravity, Claude Code &amp; Codex in the Cloud</title>
+<meta name="description" content="Run Antigravity CLI, Claude Code, and Codex on a cloud Linux VM (free with your GitHub Codespaces or 24/7 on Docker/Fly.io) and control them from your iPhone or Android with Pulsar.">
+<link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
+<style>
+.cloud-hero{max-width:740px;margin:0 auto 30px;text-align:center}
+.cloud-hero p{font-size:18px;margin:0}
+.cloud-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:20px 0 32px}
+.cloud-card{margin:0;display:flex;flex-direction:column;gap:12px}
+.cloud-card.featured{border:2px solid var(--accent)}
+.cloud-card h2{margin:0;font-size:21px}
+.cloud-card pre{margin:0;padding:12px 14px;border-radius:10px;background:color-mix(in srgb,var(--text) 7%,var(--bg,#fff));font-size:13px;overflow-x:auto}
+.cloud-card .btn{align-self:flex-start}
+@media (max-width:860px){.cloud-grid{grid-template-columns:1fr}}
+</style></head><body><main>
+<nav><a class="brand" href="/"><img src="/logo.png" alt="" width="24" height="24">Pulsar</a><a href="/pricing">Pricing</a><a href="/download">Download</a><a href="/cloud">Cloud</a><a href="/help">Help</a><a href="/support">Support</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+
+<section class="cloud-hero">
+  <span class="eyebrow">Laptop Shut Off? Keep Coding From Your Phone</span>
+  <h1>Run Antigravity in the Cloud</h1>
+  <p class="muted">Use your existing <b>GitHub account's free 60 hours/month</b> of GitHub Codespaces, or deploy our 1-command Docker / Fly.io box for a 24/7 always-on cloud workspace — powered by headless <code>agy acp</code> + Pulsar's end-to-end encrypted relay.</p>
+</section>
+
+<div class="cloud-grid">
+  <div class="card cloud-card featured">
+    <span class="eyebrow" style="align-self:flex-start;margin:0">Free · Uses Your Existing GitHub Account</span>
+    <h2>1. Launch in GitHub Codespaces (1-Click)</h2>
+    <p class="muted">Every GitHub Free account includes <b>60 hours/month (120 core-hours) FREE</b> on a 2-core, 8 GB RAM cloud Linux VM. Zero credit card, zero cloud bills to manage.</p>
+    <a class="btn" href="https://codespaces.new/robinbakshi007/pulsar-cloud?quickstart=1" target="_blank" rel="noopener">Launch Free in GitHub Codespaces →</a>
+    <ol class="muted" style="padding-left:20px;margin:0;display:grid;gap:6px;font-size:14.5px">
+      <li>Click the button above — Codespaces automatically installs <b>Antigravity CLI (<code>agy</code>)</b>, <b>Claude Code</b>, <b>Codex</b>, and <b>Pulsar Host</b> (~60s).</li>
+      <li>The <b>Pulsar Pairing QR Dashboard</b> opens in a browser tab automatically (or copy the 8-character code printed in the terminal).</li>
+      <li>Run <code>agy acp --login</code> once and <code>gh repo clone owner/repo</code> to load your repos.</li>
+      <li>Scan the QR code with Pulsar on your <a href="https://apps.apple.com/au/app/pulsar-ai-agent-remote/id6824424776">iPhone/iPad</a> or <a href="/android-beta">Android (60 days Pro free)</a>!</li>
+    </ol>
+  </div>
+
+  <div class="card cloud-card">
+    <span class="eyebrow" style="align-self:flex-start;margin:0">Always-On 24/7 · Any VPS / Fly.io / Oracle Free Tier</span>
+    <h2>2. Self-Host a 24/7 Cloud Box (Docker)</h2>
+    <p class="muted">Want a dedicated 24/7 server on Oracle Cloud Always Free ($0 forever), Fly.io (~$2–$4/mo), Railway, Azure, or a home server? Zero open ports needed — Pulsar connects outbound over our encrypted relay.</p>
+    <pre><code>git clone https://github.com/robinbakshi007/pulsar-cloud.git
+cd pulsar-cloud
+docker compose up -d
+docker exec -it pulsar-cloud agy acp --login
+docker logs pulsar-cloud   # shows your pairing code</code></pre>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn btn-outline" href="https://github.com/robinbakshi007/pulsar-cloud" target="_blank" rel="noopener">View pulsar-cloud on GitHub →</a>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0">How Cloud Security Works</h2>
+  <p class="muted" style="margin-bottom:0">Your cloud VM connects outbound to <code>wss://agentdeck-relay.finnova.com.au</code> — no public ports, no SSH exposure, and no VPN needed. Every prompt, diff, and tool approval is end-to-end encrypted (<code>XSalsa20-Poly1305</code>) directly between your phone and your cloud container. Includes the same <b>14-day automatic no-card free trial</b> (or <b>60 days free</b> with an <a href="/android-beta">Android Beta key</a>).</p>
+</div>
+
+<footer>
+  <span>Pulsar is an independent product by Finnova and is not affiliated with Google or Antigravity.</span>
+  <span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/support">Support</a></span>
+</footer>
+</main></body></html>

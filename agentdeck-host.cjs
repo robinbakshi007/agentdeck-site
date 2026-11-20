@@ -14617,11 +14617,18 @@ function lanAddresses() {
   }
   return out;
 }
-function isLocalRequest(req) {
+function codespaceHost(port) {
+  const name = process.env["CODESPACE_NAME"];
+  if (!name || !/^[A-Za-z0-9_-]+$/.test(name)) return null;
+  const domain = process.env["GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN"] || "app.github.dev";
+  return `${name}-${port}.${domain}`;
+}
+function isLocalRequest(req, port) {
   const addr = req.socket.remoteAddress ?? "";
   const local = addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
   const host = (req.headers.host ?? "").replace(/:\d+$/, "");
-  return local && (host === "localhost" || host === "127.0.0.1" || host === "[::1]");
+  const cs = port ? codespaceHost(port) : null;
+  return local && (host === "localhost" || host === "127.0.0.1" || host === "[::1]" || !!cs && host === cs);
 }
 function isTrustedLocalAction(req, port) {
   const type = String(req.headers["content-type"] ?? "").split(";")[0].trim().toLowerCase();
@@ -14629,7 +14636,8 @@ function isTrustedLocalAction(req, port) {
   if (req.headers["x-agentdeck"] !== "1") return false;
   const origin = req.headers["origin"];
   if (origin === void 0) return true;
-  return origin === `http://localhost:${port}` || origin === `http://127.0.0.1:${port}`;
+  const cs = codespaceHost(port);
+  return origin === `http://localhost:${port}` || origin === `http://127.0.0.1:${port}` || !!cs && origin === `https://${cs}`;
 }
 var MAX_UNAUTHENTICATED = 64;
 function json(res, status2, body) {
@@ -14721,7 +14729,7 @@ var HostServer = class {
       if (process.env["AGENTDECK_DEV_CORS"] === "1") res.setHeader("Access-Control-Allow-Origin", "*");
       return json(res, 200, { ok: true, app: "agentdeck", hostName: this.store.config.hostName, version: HOST_VERSION, wire: WIRE_VERSION });
     }
-    if (!isLocalRequest(req)) return json(res, 404, { error: "Not found" });
+    if (!isLocalRequest(req, this.port)) return json(res, 404, { error: "Not found" });
     try {
       if (req.method === "GET" && url.pathname === "/") {
         res.writeHead(200, {
