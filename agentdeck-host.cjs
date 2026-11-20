@@ -10467,10 +10467,10 @@ var require_websocket_server = __commonJS({
 });
 
 // src/live/main.ts
-var import_fs11 = require("fs");
-var import_os9 = require("os");
-var import_path11 = require("path");
-var import_child_process8 = require("child_process");
+var import_fs12 = require("fs");
+var import_os10 = require("os");
+var import_path12 = require("path");
+var import_child_process9 = require("child_process");
 var import_http3 = require("http");
 var import_qrcode2 = __toESM(require_lib());
 
@@ -10972,12 +10972,12 @@ var AntigravityBridge = class {
 
 // src/live/service.ts
 var import_events3 = require("events");
-var import_child_process5 = require("child_process");
+var import_child_process6 = require("child_process");
 var import_dgram = require("dgram");
-var import_fs6 = require("fs");
+var import_fs7 = require("fs");
 var import_net = require("net");
-var import_os4 = require("os");
-var import_path6 = require("path");
+var import_os5 = require("os");
+var import_path7 = require("path");
 var import_url = require("url");
 
 // src/live/steps.ts
@@ -11475,13 +11475,229 @@ async function createPullRequestUrl(cwd) {
   return { url, branch };
 }
 
-// src/live/screenshot.ts
+// src/live/cloud.ts
 var import_child_process3 = require("child_process");
+var import_util3 = require("util");
 var import_fs3 = require("fs");
 var import_os2 = require("os");
 var import_path3 = require("path");
-var import_util3 = require("util");
 var execFileAsync3 = (0, import_util3.promisify)(import_child_process3.execFile);
+var MAX_PATCH_BYTES = 512 * 1024;
+var SECRET_FILE_RE = /(^|\/)(\.env($|\.)|.*\.pem$|.*\.key$|.*\.p12$|.*\.jks$|id_rsa|id_ed25519|secrets\/)/i;
+function isSecretPath(relPath) {
+  return SECRET_FILE_RE.test(relPath.replace(/\\/g, "/"));
+}
+function parseGitHubRepo(remoteUrl) {
+  if (!remoteUrl) return null;
+  const trimmed = remoteUrl.trim();
+  const m = trimmed.match(/^https?:\/\/(?:[^@]+@)?github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i) ?? trimmed.match(/^git@github\.com:([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i) ?? trimmed.match(/^ssh:\/\/git@github\.com\/([^/\s]+)\/([^/\s]+?)(?:\.git)?$/i);
+  if (!m) return null;
+  return `${m[1]}/${m[2]}`;
+}
+async function git2(cwd, args, env) {
+  const { stdout } = await execFileAsync3("git", args, {
+    cwd,
+    maxBuffer: 32 * 1024 * 1024,
+    env: env ? { ...process.env, ...env } : process.env
+  });
+  return stdout;
+}
+async function originUrl(cwd) {
+  try {
+    return (await git2(cwd, ["remote", "get-url", "origin"])).trim() || null;
+  } catch {
+    return null;
+  }
+}
+async function listDirtyEntries(cwd) {
+  const raw = await git2(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+  const entries = raw.split("\0").filter(Boolean);
+  const safe = [];
+  const secrets = [];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const code = e.slice(0, 2);
+    const p = e.slice(3);
+    if (code.includes("R")) i++;
+    if (!p) continue;
+    if (isSecretPath(p)) secrets.push(p);
+    else safe.push(p);
+  }
+  return { safe, secrets };
+}
+async function cloudStatus(cwd) {
+  const repoName = (0, import_path3.basename)(cwd) || "project";
+  if (!cwd || !(0, import_fs3.existsSync)(cwd) || !await isGitRepo(cwd)) {
+    return {
+      workspacePath: cwd,
+      workspaceName: repoName,
+      isGit: false,
+      remoteUrl: null,
+      repoSlug: null,
+      branch: null,
+      commitSha: null,
+      dirtyCount: 0,
+      secretFilesExcluded: 0,
+      canUseCodespaces: false
+    };
+  }
+  const [branch, remote, dirty] = await Promise.all([currentBranch(cwd), originUrl(cwd), listDirtyEntries(cwd)]);
+  const repoSlug = parseGitHubRepo(remote);
+  let commitSha = null;
+  try {
+    commitSha = (await git2(cwd, ["rev-parse", "--short", "HEAD"])).trim() || null;
+  } catch {
+    commitSha = null;
+  }
+  return {
+    workspacePath: cwd,
+    workspaceName: repoName,
+    isGit: true,
+    remoteUrl: remote,
+    repoSlug,
+    branch,
+    commitSha,
+    dirtyCount: dirty.safe.length,
+    secretFilesExcluded: dirty.secrets.length,
+    canUseCodespaces: !!repoSlug
+  };
+}
+async function cloudSnapshot(cwd, opts = {}) {
+  const st = await cloudStatus(cwd);
+  if (!st.isGit) {
+    throw new Error("This folder is not a Git repository yet. Initialize Git (or pick a Git project) to sync to the cloud.");
+  }
+  const includeDirty = opts.includeDirty !== false;
+  const branch = st.branch || "main";
+  const headFull = (await git2(cwd, ["rev-parse", "HEAD"])).trim();
+  const dirty = await listDirtyEntries(cwd);
+  if (!includeDirty || dirty.safe.length === 0) {
+    let pushed = false;
+    let pushError;
+    if (st.remoteUrl) {
+      try {
+        await git2(cwd, ["push", "origin", `HEAD:refs/heads/${branch}`]);
+        pushed = true;
+      } catch (e) {
+        pushError = e.message;
+      }
+    }
+    return {
+      workspacePath: cwd,
+      repoSlug: st.repoSlug,
+      remoteUrl: st.remoteUrl,
+      branch,
+      syncBranch: branch,
+      commitSha: headFull.slice(0, 12),
+      dirtyCount: 0,
+      secretFilesExcluded: dirty.secrets.length,
+      pushed,
+      pushError,
+      patchBase64: null
+    };
+  }
+  const safeBranch = branch.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 40) || "work";
+  const stamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[-:T]/g, "").slice(0, 13);
+  const syncBranch = `pulsar-cloud/wip-${safeBranch}-${stamp}`;
+  const tmpDir = (0, import_fs3.mkdtempSync)((0, import_path3.join)((0, import_os2.tmpdir)(), "pulsar-cloud-idx-"));
+  const tmpIndex = (0, import_path3.join)(tmpDir, "index");
+  try {
+    const gitDir = (await git2(cwd, ["rev-parse", "--git-dir"])).trim();
+    const realIndex = (0, import_path3.join)(gitDir.startsWith("/") ? gitDir : (0, import_path3.join)(cwd, gitDir), "index");
+    if ((0, import_fs3.existsSync)(realIndex)) (0, import_fs3.copyFileSync)(realIndex, tmpIndex);
+    const env = { GIT_INDEX_FILE: tmpIndex };
+    const existingSafe = dirty.safe.filter((p) => (0, import_fs3.existsSync)((0, import_path3.join)(cwd, p)));
+    const deletedSafe = dirty.safe.filter((p) => !(0, import_fs3.existsSync)((0, import_path3.join)(cwd, p)));
+    if (existingSafe.length) await git2(cwd, ["add", "-f", "--", ...existingSafe], env);
+    if (deletedSafe.length) await git2(cwd, ["rm", "--cached", "--ignore-unmatch", "--", ...deletedSafe], env);
+    const treeSha = (await git2(cwd, ["write-tree"], env)).trim();
+    const commitSha = (await git2(
+      cwd,
+      ["commit-tree", treeSha, "-p", headFull, "-m", `Pulsar Cloud WIP snapshot (${branch})`],
+      {
+        ...env,
+        GIT_AUTHOR_NAME: "Pulsar Cloud Sync",
+        GIT_AUTHOR_EMAIL: "cloud-sync@pulsar.finnova.com.au",
+        GIT_COMMITTER_NAME: "Pulsar Cloud Sync",
+        GIT_COMMITTER_EMAIL: "cloud-sync@pulsar.finnova.com.au"
+      }
+    )).trim();
+    let pushed = false;
+    let pushError;
+    let patchBase64 = null;
+    if (st.remoteUrl) {
+      try {
+        await git2(cwd, ["push", "origin", `${commitSha}:refs/heads/${syncBranch}`]);
+        pushed = true;
+      } catch (e) {
+        pushError = e.message;
+      }
+    }
+    if (!pushed) {
+      const diffText = await git2(cwd, ["diff", headFull, commitSha]).catch(() => "");
+      const buf = Buffer.from(diffText, "utf8");
+      if (buf.length > 0 && buf.length <= MAX_PATCH_BYTES) {
+        patchBase64 = buf.toString("base64");
+      }
+    }
+    return {
+      workspacePath: cwd,
+      repoSlug: st.repoSlug,
+      remoteUrl: st.remoteUrl,
+      branch,
+      syncBranch: pushed ? syncBranch : branch,
+      commitSha: commitSha.slice(0, 12),
+      dirtyCount: dirty.safe.length,
+      secretFilesExcluded: dirty.secrets.length,
+      pushed,
+      pushError,
+      patchBase64
+    };
+  } finally {
+    (0, import_fs3.rmSync)(tmpDir, { recursive: true, force: true });
+  }
+}
+async function cloudPullBack(cwd, syncBranch) {
+  if (!cwd || !(0, import_fs3.existsSync)(cwd) || !await isGitRepo(cwd)) {
+    throw new Error("This folder is not a Git repository.");
+  }
+  const cleanBranch = String(syncBranch || "").trim();
+  if (!cleanBranch || !/^[A-Za-z0-9._/-]+$/.test(cleanBranch) || cleanBranch.includes("..")) {
+    throw new Error("Invalid sync branch name.");
+  }
+  await git2(cwd, ["fetch", "origin", cleanBranch]);
+  const stat = (await git2(cwd, ["diff", "--shortstat", "HEAD", `FETCH_HEAD`])).trim();
+  const dirty = await listDirtyEntries(cwd);
+  if (dirty.safe.length > 0) {
+    const localBranch = cleanBranch.startsWith("pulsar-cloud/") ? cleanBranch : `pulsar-cloud/back-${cleanBranch}`;
+    await git2(cwd, ["branch", "-f", localBranch, "FETCH_HEAD"]);
+    return {
+      ok: true,
+      merged: false,
+      branch: localBranch,
+      summary: stat || "Fetched cloud commits",
+      message: `Local uncommitted changes detected \u2014 saved cloud commits to branch "${localBranch}" so nothing was overwritten.`
+    };
+  }
+  await git2(cwd, ["merge", "--ff-only", "FETCH_HEAD"]).catch(async () => {
+    await git2(cwd, ["merge", "--no-edit", "FETCH_HEAD"]);
+  });
+  return {
+    ok: true,
+    merged: true,
+    branch: await currentBranch(cwd) || cleanBranch,
+    summary: stat || "Already up to date",
+    message: stat ? `Synced cloud changes to laptop (${stat}).` : "Your laptop is already up to date with the cloud branch."
+  };
+}
+
+// src/live/screenshot.ts
+var import_child_process4 = require("child_process");
+var import_fs4 = require("fs");
+var import_os3 = require("os");
+var import_path4 = require("path");
+var import_util4 = require("util");
+var execFileAsync4 = (0, import_util4.promisify)(import_child_process4.execFile);
 var RECENT_MS = 3 * 60 * 1e3;
 var MAX_BYTES = 10 * 1024 * 1024;
 var CACHE_TTL_MS = 2e3;
@@ -11490,18 +11706,18 @@ function newestRecentFile(dirs, namePattern) {
   const cutoff = Date.now() - RECENT_MS;
   let best = null;
   for (const dir of dirs) {
-    if (!dir || !(0, import_fs3.existsSync)(dir)) continue;
+    if (!dir || !(0, import_fs4.existsSync)(dir)) continue;
     let entries;
     try {
-      entries = (0, import_fs3.readdirSync)(dir);
+      entries = (0, import_fs4.readdirSync)(dir);
     } catch {
       continue;
     }
     for (const name of entries) {
       if (!/\.(png|jpe?g|webp)$/i.test(name) || !namePattern.test(name)) continue;
-      const full = (0, import_path3.join)(dir, name);
+      const full = (0, import_path4.join)(dir, name);
       try {
-        const st = (0, import_fs3.statSync)(full);
+        const st = (0, import_fs4.statSync)(full);
         if (st.isFile() && st.size > 0 && st.size <= MAX_BYTES && st.mtimeMs >= cutoff) {
           if (!best || st.mtimeMs > best.mtimeMs) best = { path: full, mtimeMs: st.mtimeMs };
         }
@@ -11514,41 +11730,41 @@ function newestRecentFile(dirs, namePattern) {
 async function macScreenshotDirs() {
   const dirs = [];
   try {
-    const { stdout } = await execFileAsync3("defaults", ["read", "com.apple.screencapture", "location"], { timeout: 1500 });
-    const custom = stdout.trim().replace(/^~/, (0, import_os2.homedir)());
+    const { stdout } = await execFileAsync4("defaults", ["read", "com.apple.screencapture", "location"], { timeout: 1500 });
+    const custom = stdout.trim().replace(/^~/, (0, import_os3.homedir)());
     if (custom) dirs.push(custom);
   } catch {
   }
-  dirs.push((0, import_path3.join)((0, import_os2.homedir)(), "Desktop"));
+  dirs.push((0, import_path4.join)((0, import_os3.homedir)(), "Desktop"));
   return dirs;
 }
 async function macFileToJpegBase64(srcPath) {
-  const dir = (0, import_fs3.mkdtempSync)((0, import_path3.join)((0, import_os2.tmpdir)(), "pulsar-shot-"));
-  const out = (0, import_path3.join)(dir, "shot.jpg");
+  const dir = (0, import_fs4.mkdtempSync)((0, import_path4.join)((0, import_os3.tmpdir)(), "pulsar-shot-"));
+  const out = (0, import_path4.join)(dir, "shot.jpg");
   try {
-    await execFileAsync3("sips", ["-Z", "1600", "-s", "format", "jpeg", "-s", "formatOptions", "78", srcPath, "--out", out], { timeout: 5e3 });
-    return (0, import_fs3.readFileSync)(out).toString("base64");
+    await execFileAsync4("sips", ["-Z", "1600", "-s", "format", "jpeg", "-s", "formatOptions", "78", srcPath, "--out", out], { timeout: 5e3 });
+    return (0, import_fs4.readFileSync)(out).toString("base64");
   } catch {
     try {
-      return (0, import_fs3.readFileSync)(srcPath).toString("base64");
+      return (0, import_fs4.readFileSync)(srcPath).toString("base64");
     } catch {
       return null;
     }
   } finally {
-    (0, import_fs3.rmSync)(dir, { recursive: true, force: true });
+    (0, import_fs4.rmSync)(dir, { recursive: true, force: true });
   }
 }
 async function macClipboardImage() {
   try {
-    const { stdout: info } = await execFileAsync3("osascript", ["-e", "clipboard info"], { timeout: 1500 });
+    const { stdout: info } = await execFileAsync4("osascript", ["-e", "clipboard info"], { timeout: 1500 });
     const hasPng = info.includes("PNGf");
     const hasTiff = info.includes("TIFF");
     if (!hasPng && !hasTiff) return null;
-    const dir = (0, import_fs3.mkdtempSync)((0, import_path3.join)((0, import_os2.tmpdir)(), "pulsar-clip-"));
-    const raw = (0, import_path3.join)(dir, hasPng ? "clip.png" : "clip.tiff");
+    const dir = (0, import_fs4.mkdtempSync)((0, import_path4.join)((0, import_os3.tmpdir)(), "pulsar-clip-"));
+    const raw = (0, import_path4.join)(dir, hasPng ? "clip.png" : "clip.tiff");
     try {
       const cls = hasPng ? "\xABclass PNGf\xBB" : "TIFF picture";
-      await execFileAsync3(
+      await execFileAsync4(
         "osascript",
         ["-e", `set d to the clipboard as ${cls}`, "-e", `set f to open for access POSIX file "${raw}" with write permission`, "-e", "write d to f", "-e", "close access f"],
         { timeout: 2500 }
@@ -11558,7 +11774,7 @@ async function macClipboardImage() {
       const sig = `mac-clip:${b64.length}:${b64.slice(0, 32)}:${b64.slice(-32)}`;
       return { base64: b64, mimeType: "image/jpeg", sig, label: "Mac clipboard" };
     } finally {
-      (0, import_fs3.rmSync)(dir, { recursive: true, force: true });
+      (0, import_fs4.rmSync)(dir, { recursive: true, force: true });
     }
   } catch {
     return null;
@@ -11575,7 +11791,7 @@ async function winClipboardImage() {
     "[Convert]::ToBase64String($ms.ToArray())"
   ].join(" ");
   try {
-    const { stdout } = await execFileAsync3("powershell", ["-NoProfile", "-STA", "-Command", script], { timeout: 3500, maxBuffer: 16 * 1024 * 1024 });
+    const { stdout } = await execFileAsync4("powershell", ["-NoProfile", "-STA", "-Command", script], { timeout: 3500, maxBuffer: 16 * 1024 * 1024 });
     const b64 = stdout.trim();
     if (!b64) return null;
     const sig = `win-clip:${b64.length}:${b64.slice(0, 32)}:${b64.slice(-32)}`;
@@ -11598,10 +11814,10 @@ async function latestComputerScreenshot() {
       }
       if (!result) result = await macClipboardImage();
     } else if (process.platform === "win32") {
-      const home = (0, import_os2.homedir)();
-      const file = newestRecentFile([(0, import_path3.join)(home, "Pictures", "Screenshots"), (0, import_path3.join)(home, "OneDrive", "Pictures", "Screenshots")], /.*/);
+      const home = (0, import_os3.homedir)();
+      const file = newestRecentFile([(0, import_path4.join)(home, "Pictures", "Screenshots"), (0, import_path4.join)(home, "OneDrive", "Pictures", "Screenshots")], /.*/);
       if (file) {
-        const b64 = (0, import_fs3.readFileSync)(file.path).toString("base64");
+        const b64 = (0, import_fs4.readFileSync)(file.path).toString("base64");
         const mimeType = /\.png$/i.test(file.path) ? "image/png" : "image/jpeg";
         result = { base64: b64, mimeType, sig: `win-file:${file.path}:${Math.floor(file.mtimeMs)}`, label: "Windows screenshot" };
       }
@@ -11759,9 +11975,9 @@ function formatWakeOnLanPacket(mac) {
 
 // src/live/agents/claude.ts
 var import_events = require("events");
-var import_fs4 = require("fs");
-var import_os3 = require("os");
-var import_path4 = require("path");
+var import_fs5 = require("fs");
+var import_os4 = require("os");
+var import_path5 = require("path");
 
 // src/live/agents/provider.ts
 var ItemBook = class {
@@ -11826,12 +12042,12 @@ var tailText = (s, max = 1500) => s && s.length > max ? `\u2026${s.slice(-max)}`
 // src/live/agents/claude.ts
 var HOOK_MARKER = "/local/hooks/claude";
 function defaultClaudeSettingsPath() {
-  return process.env["AGENTDECK_CLAUDE_SETTINGS"] || (0, import_path4.join)((0, import_os3.homedir)(), ".claude", "settings.json");
+  return process.env["AGENTDECK_CLAUDE_SETTINGS"] || (0, import_path5.join)((0, import_os4.homedir)(), ".claude", "settings.json");
 }
 function isClaudeHooksInstalled(settingsPath = defaultClaudeSettingsPath()) {
   try {
-    if (!(0, import_fs4.existsSync)(settingsPath)) return false;
-    const raw = (0, import_fs4.readFileSync)(settingsPath, "utf8");
+    if (!(0, import_fs5.existsSync)(settingsPath)) return false;
+    const raw = (0, import_fs5.readFileSync)(settingsPath, "utf8");
     return raw.includes(HOOK_MARKER);
   } catch {
     return false;
@@ -11840,9 +12056,9 @@ function isClaudeHooksInstalled(settingsPath = defaultClaudeSettingsPath()) {
 function installClaudeHooks(port, enable, settingsPath = defaultClaudeSettingsPath()) {
   try {
     let cfg = {};
-    if ((0, import_fs4.existsSync)(settingsPath)) {
+    if ((0, import_fs5.existsSync)(settingsPath)) {
       try {
-        cfg = JSON.parse((0, import_fs4.readFileSync)(settingsPath, "utf8"));
+        cfg = JSON.parse((0, import_fs5.readFileSync)(settingsPath, "utf8"));
       } catch {
         cfg = {};
       }
@@ -11866,8 +12082,8 @@ function installClaudeHooks(port, enable, settingsPath = defaultClaudeSettingsPa
       if (!hooks.Stop.length) delete hooks.Stop;
     }
     cfg.hooks = Object.keys(hooks).length ? hooks : void 0;
-    (0, import_fs4.mkdirSync)((0, import_path4.dirname)(settingsPath), { recursive: true });
-    (0, import_fs4.writeFileSync)(settingsPath, JSON.stringify(cfg, null, 2), { mode: 384 });
+    (0, import_fs5.mkdirSync)((0, import_path5.dirname)(settingsPath), { recursive: true });
+    (0, import_fs5.writeFileSync)(settingsPath, JSON.stringify(cfg, null, 2), { mode: 384 });
     return enable;
   } catch {
     return false;
@@ -11877,8 +12093,8 @@ var PREFIX = "claude:";
 var toolKind = (name) => name === "Bash" ? "command" : ["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(name) ? "edit" : name === "Read" ? "view" : ["Grep", "Glob"].includes(name) ? "search" : ["WebFetch", "WebSearch"].includes(name) ? "web" : name.startsWith("mcp__") ? "mcp" : "other";
 function describeTool(name, input) {
   if (name === "Bash") return { title: input?.command ?? "Command", detail: input?.description };
-  if (["Edit", "Write", "MultiEdit"].includes(name)) return { title: `${name === "Write" ? "Write" : "Edit"} ${(0, import_path4.basename)(String(input?.file_path ?? "file"))}`, detail: input?.file_path };
-  if (name === "Read") return { title: `Read ${(0, import_path4.basename)(String(input?.file_path ?? "file"))}` };
+  if (["Edit", "Write", "MultiEdit"].includes(name)) return { title: `${name === "Write" ? "Write" : "Edit"} ${(0, import_path5.basename)(String(input?.file_path ?? "file"))}`, detail: input?.file_path };
+  if (name === "Read") return { title: `Read ${(0, import_path5.basename)(String(input?.file_path ?? "file"))}` };
   if (name === "Grep" || name === "Glob") return { title: `Search ${input?.pattern ?? ""}`.trim() };
   if (name === "WebFetch") return { title: `Fetch ${input?.url ?? ""}`.trim() };
   if (name === "WebSearch") return { title: `Search the web: ${input?.query ?? ""}`.trim() };
@@ -11887,8 +12103,8 @@ function describeTool(name, input) {
 function loadClaudeKey(dir) {
   if (process.env["ANTHROPIC_API_KEY"]) return process.env["ANTHROPIC_API_KEY"];
   try {
-    const f = (0, import_path4.join)(dir, "claude.json");
-    return (0, import_fs4.existsSync)(f) ? JSON.parse((0, import_fs4.readFileSync)(f, "utf8")).apiKey ?? null : null;
+    const f = (0, import_path5.join)(dir, "claude.json");
+    return (0, import_fs5.existsSync)(f) ? JSON.parse((0, import_fs5.readFileSync)(f, "utf8")).apiKey ?? null : null;
   } catch {
     return null;
   }
@@ -11897,10 +12113,10 @@ var ClaudeProvider = class extends import_events.EventEmitter {
   constructor(dir, queryFn) {
     super();
     this.dir = dir;
-    this.file = (0, import_path4.join)(dir, "claude-sessions.json");
+    this.file = (0, import_path5.join)(dir, "claude-sessions.json");
     this.queryFn = queryFn ?? null;
     try {
-      this.sessions = (0, import_fs4.existsSync)(this.file) ? JSON.parse((0, import_fs4.readFileSync)(this.file, "utf8")) : {};
+      this.sessions = (0, import_fs5.existsSync)(this.file) ? JSON.parse((0, import_fs5.readFileSync)(this.file, "utf8")) : {};
     } catch {
       this.sessions = {};
     }
@@ -11916,7 +12132,7 @@ var ClaudeProvider = class extends import_events.EventEmitter {
   toolIdx = /* @__PURE__ */ new Map();
   queryFn;
   save() {
-    (0, import_fs4.writeFileSync)(this.file, JSON.stringify(this.sessions, null, 2), { mode: 384 });
+    (0, import_fs5.writeFileSync)(this.file, JSON.stringify(this.sessions, null, 2), { mode: 384 });
   }
   async query() {
     if (this.queryFn) return this.queryFn;
@@ -11942,7 +12158,7 @@ var ClaudeProvider = class extends import_events.EventEmitter {
       updatedAt: s.updatedAt,
       createdAt: s.createdAt,
       workspacePath: s.cwd,
-      workspaceName: (0, import_path4.basename)(s.cwd),
+      workspaceName: (0, import_path5.basename)(s.cwd),
       repo: null,
       branch: null,
       pendingApprovals: this.book.pending(id)
@@ -12089,7 +12305,7 @@ var ClaudeProvider = class extends import_events.EventEmitter {
       this.sessions[sessionId] = {
         sessionId,
         cwd,
-        title: `Claude CLI (${(0, import_path4.basename)(cwd) || "terminal"})`,
+        title: `Claude CLI (${(0, import_path5.basename)(cwd) || "terminal"})`,
         createdAt: at,
         updatedAt: at
       };
@@ -12134,9 +12350,9 @@ var ClaudeProvider = class extends import_events.EventEmitter {
 
 // src/live/agents/api.ts
 var import_events2 = require("events");
-var import_child_process4 = require("child_process");
-var import_fs5 = require("fs");
-var import_path5 = require("path");
+var import_child_process5 = require("child_process");
+var import_fs6 = require("fs");
+var import_path6 = require("path");
 var MODEL_API_PRESETS = [
   { id: "deepseek", label: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat", needsKey: true, keyUrl: "https://platform.deepseek.com/api_keys" },
   { id: "qwen", label: "Qwen", baseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", model: "qwen3-coder-plus", needsKey: true, keyUrl: "https://modelstudio.console.alibabacloud.com/" },
@@ -12147,15 +12363,15 @@ var MODEL_API_PRESETS = [
 ];
 function loadModelApis(dir) {
   try {
-    const f = (0, import_path5.join)(dir, "models.json");
-    const list = (0, import_fs5.existsSync)(f) ? JSON.parse((0, import_fs5.readFileSync)(f, "utf8")) : [];
+    const f = (0, import_path6.join)(dir, "models.json");
+    const list = (0, import_fs6.existsSync)(f) ? JSON.parse((0, import_fs6.readFileSync)(f, "utf8")) : [];
     return Array.isArray(list) ? list.filter((c) => c && c.id && c.baseUrl && c.model) : [];
   } catch {
     return [];
   }
 }
 function saveModelApis(dir, list) {
-  (0, import_fs5.writeFileSync)((0, import_path5.join)(dir, "models.json"), JSON.stringify(list, null, 2), { mode: 384 });
+  (0, import_fs6.writeFileSync)((0, import_path6.join)(dir, "models.json"), JSON.stringify(list, null, 2), { mode: 384 });
 }
 function upsertModelApi(dir, p) {
   const id = String(p.id ?? "").trim();
@@ -12199,9 +12415,9 @@ var MAX_READ = 6e4;
 var MAX_STEPS = 40;
 function insideProject(cwd, p) {
   const rel = String(p ?? ".").trim() || ".";
-  const full = (0, import_path5.resolve)(cwd, rel);
-  const r = (0, import_path5.relative)(cwd, full);
-  if (r === ".." || r.startsWith(`..${import_path5.sep}`) || (0, import_path5.isAbsolute)(r)) throw new Error("That path is outside the project folder");
+  const full = (0, import_path6.resolve)(cwd, rel);
+  const r = (0, import_path6.relative)(cwd, full);
+  if (r === ".." || r.startsWith(`..${import_path6.sep}`) || (0, import_path6.isAbsolute)(r)) throw new Error("That path is outside the project folder");
   return full;
 }
 function searchProject(cwd, query) {
@@ -12209,22 +12425,22 @@ function searchProject(cwd, query) {
   const out = [];
   const walk = (dir, depth) => {
     if (out.length >= 80 || depth > 8) return;
-    for (const name of (0, import_fs5.readdirSync)(dir)) {
+    for (const name of (0, import_fs6.readdirSync)(dir)) {
       if (out.length >= 80) return;
       if (SKIP_DIRS.has(name) || name.startsWith(".env")) continue;
-      const f = (0, import_path5.join)(dir, name);
+      const f = (0, import_path6.join)(dir, name);
       let st;
       try {
-        st = (0, import_fs5.statSync)(f);
+        st = (0, import_fs6.statSync)(f);
       } catch {
         continue;
       }
       if (st.isDirectory()) walk(f, depth + 1);
       else if (st.size < 1e6) {
-        const text = (0, import_fs5.readFileSync)(f, "utf8");
+        const text = (0, import_fs6.readFileSync)(f, "utf8");
         if (text.includes("\0")) continue;
         text.split("\n").forEach((line, i) => {
-          if (out.length < 80 && line.toLowerCase().includes(q)) out.push(`${(0, import_path5.relative)(cwd, f)}:${i + 1}: ${line.trim().slice(0, 200)}`);
+          if (out.length < 80 && line.toLowerCase().includes(q)) out.push(`${(0, import_path6.relative)(cwd, f)}:${i + 1}: ${line.trim().slice(0, 200)}`);
         });
       }
     }
@@ -12236,7 +12452,7 @@ function runShell(cwd, command, signal) {
   return new Promise((resolvePromise) => {
     const shell = process.platform === "win32" ? "cmd.exe" : process.env["SHELL"] || "/bin/sh";
     const args = process.platform === "win32" ? ["/d", "/s", "/c", command] : ["-lc", command];
-    const child = (0, import_child_process4.spawn)(shell, args, { cwd, env: process.env, signal, windowsHide: true });
+    const child = (0, import_child_process5.spawn)(shell, args, { cwd, env: process.env, signal, windowsHide: true });
     let out = "";
     const add = (d) => {
       out += d.toString();
@@ -12265,9 +12481,9 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
     this.id = `api:${cfg.id}`;
     this.label = cfg.label;
     this.prefix = `api:${cfg.id}:`;
-    this.file = (0, import_path5.join)(dir, "api-sessions", `${cfg.id}.json`);
+    this.file = (0, import_path6.join)(dir, "api-sessions", `${cfg.id}.json`);
     try {
-      this.sessions = (0, import_fs5.existsSync)(this.file) ? JSON.parse((0, import_fs5.readFileSync)(this.file, "utf8")) : {};
+      this.sessions = (0, import_fs6.existsSync)(this.file) ? JSON.parse((0, import_fs6.readFileSync)(this.file, "utf8")) : {};
     } catch {
       this.sessions = {};
     }
@@ -12282,9 +12498,9 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
   file;
   running = /* @__PURE__ */ new Map();
   save() {
-    (0, import_fs5.mkdirSync)((0, import_path5.dirname)(this.file), { recursive: true, mode: 448 });
+    (0, import_fs6.mkdirSync)((0, import_path6.dirname)(this.file), { recursive: true, mode: 448 });
     for (const s of Object.values(this.sessions)) s.items = this.book.list(this.prefix + s.id).slice(-400);
-    (0, import_fs5.writeFileSync)(this.file, JSON.stringify(this.sessions), { mode: 384 });
+    (0, import_fs6.writeFileSync)(this.file, JSON.stringify(this.sessions), { mode: 384 });
   }
   async available() {
     if (this.cfg.apiKey) return true;
@@ -12310,7 +12526,7 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
       updatedAt: s.updatedAt,
       createdAt: s.createdAt,
       workspacePath: s.cwd,
-      workspaceName: (0, import_path5.basename)(s.cwd),
+      workspaceName: (0, import_path6.basename)(s.cwd),
       repo: null,
       branch: null,
       pendingApprovals: this.book.pending(id)
@@ -12408,7 +12624,7 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
   }
   async runTool(id, s, name, args, signal) {
     const cwd = s.cwd;
-    const rel = (p) => (0, import_path5.relative)(cwd, insideProject(cwd, p)) || ".";
+    const rel = (p) => (0, import_path6.relative)(cwd, insideProject(cwd, p)) || ".";
     const title = name === "run_command" ? String(args.command ?? "") : name === "search" ? `Search ${args.query ?? ""}` : name === "list_files" ? `List ${rel(args.path)}` : `${name === "read_file" ? "Read" : name === "write_file" ? "Write" : "Edit"} ${rel(args.path)}`;
     const step = this.put(id, { kind: "tool", at: nowIso(), tool: toolKind2(name), title, status: "running" });
     const finish = (status2, detail, exitCode) => this.put(id, { ...step, status: status2, detail: tailText(detail), ...exitCode !== void 0 ? { exitCode } : {} });
@@ -12416,14 +12632,14 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
       switch (name) {
         case "list_files": {
           const dir = insideProject(cwd, args.path);
-          const names = (0, import_fs5.readdirSync)(dir).filter((n) => !SKIP_DIRS.has(n)).slice(0, 300).map((n) => (0, import_fs5.statSync)((0, import_path5.join)(dir, n)).isDirectory() ? `${n}/` : n);
+          const names = (0, import_fs6.readdirSync)(dir).filter((n) => !SKIP_DIRS.has(n)).slice(0, 300).map((n) => (0, import_fs6.statSync)((0, import_path6.join)(dir, n)).isDirectory() ? `${n}/` : n);
           finish("done");
           return names.join("\n") || "(empty)";
         }
         case "read_file": {
           const f = insideProject(cwd, args.path);
-          if ((0, import_path5.basename)(f).startsWith(".env")) throw new Error("Pulsar does not let agents read .env files (they hold secrets)");
-          const text = (0, import_fs5.readFileSync)(f, "utf8");
+          if ((0, import_path6.basename)(f).startsWith(".env")) throw new Error("Pulsar does not let agents read .env files (they hold secrets)");
+          const text = (0, import_fs6.readFileSync)(f, "utf8");
           finish("done");
           return text.length > MAX_READ ? `${text.slice(0, MAX_READ)}
 \u2026(truncated, ${text.length} characters)` : text;
@@ -12438,7 +12654,7 @@ var ModelApiProvider = class extends import_events2.EventEmitter {
           const f = insideProject(cwd, args.path);
           let next;
           if (name === "edit_file") {
-            const cur = (0, import_fs5.readFileSync)(f, "utf8");
+            const cur = (0, import_fs6.readFileSync)(f, "utf8");
             const oldText = String(args.old_text ?? "");
             const n = oldText ? cur.split(oldText).length - 1 : 0;
             if (n !== 1) throw new Error(n ? "old_text appears more than once; include more surrounding lines" : "old_text was not found in the file");
@@ -12451,8 +12667,8 @@ ${next.slice(0, 800)}`;
             finish("canceled", "Denied on the phone");
             return "The owner denied this change.";
           }
-          (0, import_fs5.mkdirSync)((0, import_path5.dirname)(f), { recursive: true });
-          (0, import_fs5.writeFileSync)(f, next);
+          (0, import_fs6.mkdirSync)((0, import_path6.dirname)(f), { recursive: true });
+          (0, import_fs6.writeFileSync)(f, next);
           finish("done");
           return "Done.";
         }
@@ -12523,7 +12739,7 @@ ${out.slice(-2e4)}`;
 // src/live/service.ts
 var cachedDarwinMac = null;
 function primaryMacAddress() {
-  const ifaces = (0, import_os4.networkInterfaces)();
+  const ifaces = (0, import_os5.networkInterfaces)();
   const isRealMac = (m) => !!m && m !== "00:00:00:00:00:00" && m !== "02:00:00:00:00:00";
   const entries = Object.entries(ifaces).sort(([a], [b]) => {
     const score = (n) => /^(en0|eth0|wi-fi|ethernet)$/i.test(n) ? 0 : /^(en|eth|wlan|wl)/i.test(n) ? 1 : 2;
@@ -12548,7 +12764,7 @@ function primaryMacAddress() {
     const candidates = [firstActiveName, "en0", "en1"].filter((n, i, arr) => !!n && arr.indexOf(n) === i);
     for (const iface of candidates) {
       try {
-        const res = (0, import_child_process5.spawnSync)("ifconfig", [iface], { encoding: "utf8", timeout: 1500 });
+        const res = (0, import_child_process6.spawnSync)("ifconfig", [iface], { encoding: "utf8", timeout: 1500 });
         const m = (res.stdout ?? "").match(/\bether\s+([0-9a-f]{2}(?::[0-9a-f]{2}){5})\b/i);
         if (m && isRealMac(m[1])) {
           const mac = m[1].toUpperCase();
@@ -12584,7 +12800,7 @@ async function sendWakeOnLan(mac, broadcastIp = "255.255.255.255", port = 9) {
   });
   return { ok: true, mac, bytes: pkt.byteLength };
 }
-var HOST_VERSION = "1.3.0";
+var HOST_VERSION = "1.4.0";
 var INITIAL_WINDOW = 25;
 var HISTORY_PAGE = 120;
 var MAX_HISTORY_DEPTH = Number(process.env["AGENTDECK_HISTORY_DEPTH"] || 2e3);
@@ -12842,9 +13058,9 @@ var AgentDeckService = class extends import_events3.EventEmitter {
     if (!this.sleepProc && process.env["NODE_ENV"] !== "test") {
       try {
         if (process.platform === "darwin") {
-          this.sleepProc = (0, import_child_process5.spawn)("caffeinate", ["-di"], { stdio: "ignore" });
+          this.sleepProc = (0, import_child_process6.spawn)("caffeinate", ["-di"], { stdio: "ignore" });
         } else if (process.platform === "linux") {
-          this.sleepProc = (0, import_child_process5.spawn)("systemd-inhibit", ["--what=idle:sleep", "sleep", "infinity"], { stdio: "ignore" });
+          this.sleepProc = (0, import_child_process6.spawn)("systemd-inhibit", ["--what=idle:sleep", "sleep", "infinity"], { stdio: "ignore" });
         }
         this.sleepProc?.on("error", () => {
           this.sleepProc = null;
@@ -13163,8 +13379,8 @@ var AgentDeckService = class extends import_events3.EventEmitter {
     const counts = /* @__PURE__ */ new Map();
     for (const c of convs) {
       if (!c.workspacePath) continue;
-      const parent = (0, import_path6.dirname)(c.workspacePath);
-      if (parent && parent !== "/" && (0, import_fs6.existsSync)(parent)) {
+      const parent = (0, import_path7.dirname)(c.workspacePath);
+      if (parent && parent !== "/" && (0, import_fs7.existsSync)(parent)) {
         counts.set(parent, (counts.get(parent) ?? 0) + 1);
       }
     }
@@ -13177,9 +13393,9 @@ var AgentDeckService = class extends import_events3.EventEmitter {
       }
     }
     if (best) return best;
-    const home = (0, import_os4.homedir)();
-    for (const candidate of [(0, import_path6.join)(home, "Documents", "GitHub"), (0, import_path6.join)(home, "GitHub"), (0, import_path6.join)(home, "Projects"), (0, import_path6.join)(home, "Developer")]) {
-      if ((0, import_fs6.existsSync)(candidate)) return candidate;
+    const home = (0, import_os5.homedir)();
+    for (const candidate of [(0, import_path7.join)(home, "Documents", "GitHub"), (0, import_path7.join)(home, "GitHub"), (0, import_path7.join)(home, "Projects"), (0, import_path7.join)(home, "Developer")]) {
+      if ((0, import_fs7.existsSync)(candidate)) return candidate;
     }
     return home;
   }
@@ -13207,14 +13423,14 @@ var AgentDeckService = class extends import_events3.EventEmitter {
     if (this.liveChefEnabled) {
       const rootDir = this.defaultProjectsRoot(convs);
       try {
-        const entries = (0, import_fs6.readdirSync)(rootDir, { withFileTypes: true });
+        const entries = (0, import_fs7.readdirSync)(rootDir, { withFileTypes: true });
         for (const e of entries.slice(0, 30)) {
           if (!e.isDirectory() || e.name.startsWith(".")) continue;
-          const full = (0, import_path6.join)(rootDir, e.name);
+          const full = (0, import_path7.join)(rootDir, e.name);
           if (!map.has(full)) {
             let mtime = "1970-01-01T00:00:00.000Z";
             try {
-              mtime = (0, import_fs6.statSync)(full).mtime.toISOString();
+              mtime = (0, import_fs7.statSync)(full).mtime.toISOString();
             } catch {
             }
             map.set(full, {
@@ -13250,11 +13466,11 @@ var AgentDeckService = class extends import_events3.EventEmitter {
       const convs = await this.conversations();
       const rootDir = this.defaultProjectsRoot(convs);
       const folderName = extractNewProjectName(text, explicitName);
-      const newPath = (0, import_path6.join)(rootDir, folderName);
-      (0, import_fs6.mkdirSync)(newPath, { recursive: true });
-      if (!(0, import_fs6.existsSync)((0, import_path6.join)(newPath, ".git"))) {
+      const newPath = (0, import_path7.join)(rootDir, folderName);
+      (0, import_fs7.mkdirSync)(newPath, { recursive: true });
+      if (!(0, import_fs7.existsSync)((0, import_path7.join)(newPath, ".git"))) {
         try {
-          (0, import_child_process5.spawnSync)("git", ["init"], { cwd: newPath, stdio: "ignore" });
+          (0, import_child_process6.spawnSync)("git", ["init"], { cwd: newPath, stdio: "ignore" });
         } catch {
         }
       }
@@ -13266,7 +13482,7 @@ var AgentDeckService = class extends import_events3.EventEmitter {
     if (typeof path !== "string" || !path) throw new RpcError("workspacePath is required");
     const known = (await this.workspaces()).some((w) => w.path === path);
     if (!known) throw new RpcError("Unknown workspace");
-    if (!(0, import_fs6.existsSync)(path)) throw new RpcError("Workspace folder no longer exists");
+    if (!(0, import_fs7.existsSync)(path)) throw new RpcError("Workspace folder no longer exists");
     return path;
   }
   /** Refreshes from Antigravity once when an id isn't known yet (just started, or the host only just came up). */
@@ -13755,6 +13971,22 @@ var AgentDeckService = class extends import_events3.EventEmitter {
           return await this.revertDiffHunk(deviceId, p);
         case "changes.createPr":
           return await this.createPr(deviceId, p);
+        case "cloud.status": {
+          const cwd = await this.requireWorkspace(p?.workspacePath);
+          return await cloudStatus(cwd);
+        }
+        case "cloud.snapshot": {
+          const cwd = await this.requireWorkspace(p?.workspacePath);
+          const snap = await cloudSnapshot(cwd, { includeDirty: p?.includeDirty !== false });
+          this.governance?.log({ action: "approve", agent: "Pulsar", conversationId: "(cloud)", deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `Cloud snapshot: ${snap.syncBranch} (${snap.dirtyCount} dirty, pushed=${snap.pushed})` });
+          return snap;
+        }
+        case "cloud.pullBack": {
+          const cwd = await this.requireWorkspace(p?.workspacePath);
+          const res = await cloudPullBack(cwd, String(p?.syncBranch ?? ""));
+          this.governance?.log({ action: "approve", agent: "Pulsar", conversationId: "(cloud)", deviceId, deviceName: this.store.getDevice(deviceId)?.name, detail: `Cloud pull back: ${res.branch} (merged=${res.merged})` });
+          return res;
+        }
         case "preview.fetch":
           return await this.preview(p);
         case "push.register": {
@@ -13865,7 +14097,7 @@ async function checkCompatibility(servers) {
 
 // src/live/crash.ts
 var import_https2 = require("https");
-var import_os5 = require("os");
+var import_os6 = require("os");
 var ENDPOINT = process.env["AGENTDECK_CRASH_URL"] || "https://agentdeck-telemetry.finnova.com.au/v1/crash";
 function scrub(text) {
   return text.replace(/\/(Users|home)\/[^/\s'"]+/g, "/~").replace(/[A-Za-z]:\\Users\\[^\\\s'"]+/g, "~").replace(/[^\s@'"]+@[^\s@'"]+\.[a-z]{2,}/gi, "<email>").replace(/\b[A-Za-z0-9_\-+/=]{32,}\b/g, "<redacted>");
@@ -13877,7 +14109,7 @@ function reportCrash(error, version, fatal) {
     source: "host",
     version,
     platform: process.platform,
-    os: `${(0, import_os5.release)()} node ${process.versions.node}`,
+    os: `${(0, import_os6.release)()} node ${process.versions.node}`,
     name: scrub(e.name).slice(0, 120),
     message: scrub(e.message).slice(0, 1e3),
     stack: scrub(e.stack ?? "").slice(0, 6e3),
@@ -14055,9 +14287,9 @@ var LicenseManager = class {
 };
 
 // src/live/store.ts
-var import_fs7 = require("fs");
-var import_os6 = require("os");
-var import_path7 = require("path");
+var import_fs8 = require("fs");
+var import_os7 = require("os");
+var import_path8 = require("path");
 var Store = class {
   dir;
   hostFile;
@@ -14066,35 +14298,48 @@ var Store = class {
   /** True when this run created the host identity (first launch). */
   isNew;
   devices;
-  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path7.join)((0, import_os6.homedir)(), ".agentdeck")) {
+  constructor(dir = process.env["AGENTDECK_HOME"] || (0, import_path8.join)((0, import_os7.homedir)(), ".agentdeck")) {
     this.dir = dir;
-    (0, import_fs7.mkdirSync)(dir, { recursive: true, mode: 448 });
-    (0, import_fs7.chmodSync)(dir, 448);
-    this.hostFile = (0, import_path7.join)(dir, "host.json");
-    this.devicesFile = (0, import_path7.join)(dir, "devices.json");
+    (0, import_fs8.mkdirSync)(dir, { recursive: true, mode: 448 });
+    (0, import_fs8.chmodSync)(dir, 448);
+    this.hostFile = (0, import_path8.join)(dir, "host.json");
+    this.devicesFile = (0, import_path8.join)(dir, "devices.json");
     const saved = this.read(this.hostFile);
     this.isNew = !saved;
     this.config = saved ?? {
-      hostId: randomId(12),
-      hostName: (0, import_os6.hostname)().replace(/\.local$/, ""),
+      hostId: process.env["PULSAR_HOST_ID"]?.trim() || randomId(12),
+      hostName: process.env["PULSAR_HOST_NAME"]?.trim() || (0, import_os7.hostname)().replace(/\.local$/, ""),
       relayToken: randomId(32)
     };
+    if (process.env["PULSAR_HOST_ID"]?.trim()) this.config.hostId = process.env["PULSAR_HOST_ID"].trim();
+    if (process.env["PULSAR_HOST_NAME"]?.trim()) this.config.hostName = process.env["PULSAR_HOST_NAME"].trim();
     if (process.env["AGENTDECK_RELAY_URL"]) this.config.relayUrl = process.env["AGENTDECK_RELAY_URL"];
     this.write(this.hostFile, this.config);
     this.devices = this.read(this.devicesFile) ?? [];
+    const preId = process.env["PULSAR_PREPAIR_DEVICE_ID"]?.trim();
+    const preKey = process.env["PULSAR_PREPAIR_KEY_B64"]?.trim();
+    if (preId && preKey && !this.getDevice(preId)) {
+      this.upsertDevice({
+        deviceId: preId,
+        name: process.env["PULSAR_PREPAIR_DEVICE_NAME"]?.trim() || "Pulsar Phone",
+        platform: process.env["PULSAR_PREPAIR_PLATFORM"]?.trim() || "mobile",
+        key: preKey,
+        pairedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
   }
   read(file) {
     try {
-      return (0, import_fs7.existsSync)(file) ? JSON.parse((0, import_fs7.readFileSync)(file, "utf8")) : null;
+      return (0, import_fs8.existsSync)(file) ? JSON.parse((0, import_fs8.readFileSync)(file, "utf8")) : null;
     } catch {
       return null;
     }
   }
   write(file, value) {
     const tmp = `${file}.tmp`;
-    (0, import_fs7.writeFileSync)(tmp, JSON.stringify(value, null, 2), { mode: 384 });
-    (0, import_fs7.renameSync)(tmp, file);
-    (0, import_fs7.chmodSync)(file, 384);
+    (0, import_fs8.writeFileSync)(tmp, JSON.stringify(value, null, 2), { mode: 384 });
+    (0, import_fs8.renameSync)(tmp, file);
+    (0, import_fs8.chmodSync)(file, 384);
   }
   saveConfig(patch) {
     this.config = { ...this.config, ...patch };
@@ -14125,8 +14370,8 @@ var Store = class {
 
 // src/live/server.ts
 var import_http2 = require("http");
-var import_os7 = require("os");
-var import_child_process6 = require("child_process");
+var import_os8 = require("os");
+var import_child_process7 = require("child_process");
 var import_qrcode = __toESM(require_lib());
 
 // ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/wrapper.mjs
@@ -14610,7 +14855,7 @@ load();watch();
 // src/live/server.ts
 function lanAddresses() {
   const out = [];
-  for (const list of Object.values((0, import_os7.networkInterfaces)())) {
+  for (const list of Object.values((0, import_os8.networkInterfaces)())) {
     for (const a of list ?? []) {
       if (a.family === "IPv4" && !a.internal && !a.address.startsWith("169.254.")) out.push(a.address);
     }
@@ -14893,7 +15138,7 @@ var HostServer = class {
     const cmd2 = process.platform === "darwin" ? ["dns-sd", ["-R", name, "_agentdeck._tcp", "local", String(this.port), ...txt]] : process.platform === "linux" ? ["avahi-publish-service", [name, "_agentdeck._tcp", String(this.port), ...txt]] : null;
     if (!cmd2) return;
     try {
-      this.advertiser = (0, import_child_process6.spawn)(cmd2[0], cmd2[1], { stdio: "ignore" });
+      this.advertiser = (0, import_child_process7.spawn)(cmd2[0], cmd2[1], { stdio: "ignore" });
       this.advertiser.on("error", () => this.advertiser = null);
     } catch {
       this.advertiser = null;
@@ -14910,8 +15155,8 @@ var HostServer = class {
 };
 
 // src/live/governance.ts
-var import_fs8 = require("fs");
-var import_path8 = require("path");
+var import_fs9 = require("fs");
+var import_path9 = require("path");
 var MAX_AUDIT_BYTES = 5 * 1024 * 1024;
 var SHELL_CHAIN_RE = /[;&|`$<>]|\r|\n/;
 var SAFE_COMMAND_RE = /^\s*(ls|pwd|whoami|date|uname|which|cat|head|tail|wc|stat|file|grep|rg|git\s+(status|diff|log|branch|show|rev-parse)|npm\s+(test|run\s+(test|lint|typecheck|check))|pnpm\s+(test|lint|typecheck|check)|yarn\s+(test|lint|typecheck)|npx\s+(tsc|jest|vitest)|pytest|cargo\s+(test|check)|go\s+test)(\s+[-a-zA-Z0-9_./:@=]+)*\s*$/i;
@@ -14931,17 +15176,17 @@ var Governance = class {
   autoApproveSafe = false;
   votes = /* @__PURE__ */ new Map();
   constructor(dir) {
-    this.auditFile = (0, import_path8.join)(dir, "audit.jsonl");
-    this.rulesFile = (0, import_path8.join)(dir, "rules.json");
-    this.prefsFile = (0, import_path8.join)(dir, "governance-prefs.json");
+    this.auditFile = (0, import_path9.join)(dir, "audit.jsonl");
+    this.rulesFile = (0, import_path9.join)(dir, "rules.json");
+    this.prefsFile = (0, import_path9.join)(dir, "governance-prefs.json");
     try {
-      this.rules = (0, import_fs8.existsSync)(this.rulesFile) ? JSON.parse((0, import_fs8.readFileSync)(this.rulesFile, "utf8")) : [];
+      this.rules = (0, import_fs9.existsSync)(this.rulesFile) ? JSON.parse((0, import_fs9.readFileSync)(this.rulesFile, "utf8")) : [];
     } catch {
       this.rules = [];
     }
     try {
-      if ((0, import_fs8.existsSync)(this.prefsFile)) {
-        const p = JSON.parse((0, import_fs8.readFileSync)(this.prefsFile, "utf8"));
+      if ((0, import_fs9.existsSync)(this.prefsFile)) {
+        const p = JSON.parse((0, import_fs9.readFileSync)(this.prefsFile, "utf8"));
         this.autoApproveSafe = !!p?.autoApproveSafe;
       }
     } catch {
@@ -14951,7 +15196,7 @@ var Governance = class {
   setAutoApproveSafe(enabled) {
     this.autoApproveSafe = !!enabled;
     try {
-      (0, import_fs8.writeFileSync)(this.prefsFile, JSON.stringify({ autoApproveSafe: this.autoApproveSafe }, null, 2), { mode: 384 });
+      (0, import_fs9.writeFileSync)(this.prefsFile, JSON.stringify({ autoApproveSafe: this.autoApproveSafe }, null, 2), { mode: 384 });
     } catch {
     }
     return this.autoApproveSafe;
@@ -14959,15 +15204,15 @@ var Governance = class {
   log(e) {
     const entry = { at: (/* @__PURE__ */ new Date()).toISOString(), ...e, ...e.detail ? { detail: e.detail.slice(0, 500) } : {} };
     try {
-      if ((0, import_fs8.existsSync)(this.auditFile) && (0, import_fs8.statSync)(this.auditFile).size > MAX_AUDIT_BYTES) (0, import_fs8.renameSync)(this.auditFile, this.auditFile.replace(/\.jsonl$/, ".1.jsonl"));
-      (0, import_fs8.appendFileSync)(this.auditFile, `${JSON.stringify(entry)}
+      if ((0, import_fs9.existsSync)(this.auditFile) && (0, import_fs9.statSync)(this.auditFile).size > MAX_AUDIT_BYTES) (0, import_fs9.renameSync)(this.auditFile, this.auditFile.replace(/\.jsonl$/, ".1.jsonl"));
+      (0, import_fs9.appendFileSync)(this.auditFile, `${JSON.stringify(entry)}
 `, { mode: 384 });
     } catch {
     }
   }
   list(opts = {}) {
-    if (!(0, import_fs8.existsSync)(this.auditFile)) return [];
-    const lines = (0, import_fs8.readFileSync)(this.auditFile, "utf8").trim().split("\n").filter(Boolean);
+    if (!(0, import_fs9.existsSync)(this.auditFile)) return [];
+    const lines = (0, import_fs9.readFileSync)(this.auditFile, "utf8").trim().split("\n").filter(Boolean);
     const out = [];
     for (let i = lines.length - 1; i >= 0 && out.length < (opts.limit ?? 200); i--) {
       try {
@@ -14993,7 +15238,7 @@ var Governance = class {
       return { id: String(r?.id || `rule-${i + 1}`), pattern, approvals, ...r?.label ? { label: String(r.label).slice(0, 80) } : {} };
     });
     this.rules = clean;
-    (0, import_fs8.writeFileSync)(this.rulesFile, JSON.stringify(clean, null, 2), { mode: 384 });
+    (0, import_fs9.writeFileSync)(this.rulesFile, JSON.stringify(clean, null, 2), { mode: 384 });
     return clean;
   }
   /** Approvals needed for this command / action text (0 = auto-approve, 1 = single phone, 2..5 = multi-phone quorum). */
@@ -15040,12 +15285,12 @@ var Governance = class {
 
 // src/live/agents/codex.ts
 var import_events5 = require("events");
-var import_fs9 = require("fs");
-var import_os8 = require("os");
-var import_path9 = require("path");
+var import_fs10 = require("fs");
+var import_os9 = require("os");
+var import_path10 = require("path");
 
 // src/live/agents/jsonrpc.ts
-var import_child_process7 = require("child_process");
+var import_child_process8 = require("child_process");
 var import_events4 = require("events");
 var RpcProcessError = class extends Error {
 };
@@ -15069,7 +15314,7 @@ var StdioRpc = class extends import_events4.EventEmitter {
   }
   start() {
     if (this.running) return;
-    const p = (0, import_child_process7.spawn)(this.command, this.args, { cwd: this.opts.cwd, env: { ...process.env, ...this.opts.env }, stdio: ["pipe", "pipe", "pipe"] });
+    const p = (0, import_child_process8.spawn)(this.command, this.args, { cwd: this.opts.cwd, env: { ...process.env, ...this.opts.env }, stdio: ["pipe", "pipe", "pipe"] });
     this.proc = p;
     p.stdout.setEncoding("utf8");
     p.stdout.on("data", (chunk) => this.onData(chunk));
@@ -15158,12 +15403,12 @@ var StdioRpc = class extends import_events4.EventEmitter {
 async function commandExists(cmd2) {
   const { access } = await import("fs/promises");
   const { constants } = await import("fs");
-  const { delimiter, join: join12, isAbsolute: isAbsolute3 } = await import("path");
+  const { delimiter, join: join13, isAbsolute: isAbsolute3 } = await import("path");
   if (isAbsolute3(cmd2)) return access(cmd2, constants.X_OK).then(() => true, () => false);
   const exts = process.platform === "win32" ? [".exe", ".cmd", ".bat", ""] : [""];
   for (const dir of (process.env["PATH"] ?? "").split(delimiter)) {
     for (const ext of exts) {
-      if (await access(join12(dir, cmd2 + ext), constants.X_OK).then(() => true, () => false)) return true;
+      if (await access(join13(dir, cmd2 + ext), constants.X_OK).then(() => true, () => false)) return true;
     }
   }
   return false;
@@ -15191,20 +15436,20 @@ function rpcErrorText(e) {
 // src/live/agents/codex.ts
 function findExtensionCodexBin() {
   const roots = [
-    (0, import_path9.join)((0, import_os8.homedir)(), ".vscode", "extensions"),
-    (0, import_path9.join)((0, import_os8.homedir)(), ".antigravity", "extensions"),
-    (0, import_path9.join)((0, import_os8.homedir)(), ".cursor", "extensions")
+    (0, import_path10.join)((0, import_os9.homedir)(), ".vscode", "extensions"),
+    (0, import_path10.join)((0, import_os9.homedir)(), ".antigravity", "extensions"),
+    (0, import_path10.join)((0, import_os9.homedir)(), ".cursor", "extensions")
   ];
   const candidates = [];
   for (const root of roots) {
     try {
-      for (const d of (0, import_fs9.readdirSync)(root)) {
+      for (const d of (0, import_fs10.readdirSync)(root)) {
         if (!d.startsWith("openai.chatgpt-")) continue;
-        const binDir = (0, import_path9.join)(root, d, "bin");
-        if (!(0, import_fs9.existsSync)(binDir)) continue;
-        for (const arch of (0, import_fs9.readdirSync)(binDir)) {
-          const bin = (0, import_path9.join)(binDir, arch, process.platform === "win32" ? "codex.exe" : "codex");
-          if ((0, import_fs9.existsSync)(bin)) candidates.push(bin);
+        const binDir = (0, import_path10.join)(root, d, "bin");
+        if (!(0, import_fs10.existsSync)(binDir)) continue;
+        for (const arch of (0, import_fs10.readdirSync)(binDir)) {
+          const bin = (0, import_path10.join)(binDir, arch, process.platform === "win32" ? "codex.exe" : "codex");
+          if ((0, import_fs10.existsSync)(bin)) candidates.push(bin);
         }
       }
     } catch {
@@ -15244,7 +15489,7 @@ ${it.text}` };
       };
     case "fileChange": {
       const paths = (it.changes ?? []).map((c) => c.path);
-      return { kind: "tool", at, tool: "edit", title: paths.length === 1 ? `Edited ${(0, import_path9.basename)(paths[0])}` : `Edited ${paths.length} files`, detail: paths.join("\n"), status: stepState2(it.status) };
+      return { kind: "tool", at, tool: "edit", title: paths.length === 1 ? `Edited ${(0, import_path10.basename)(paths[0])}` : `Edited ${paths.length} files`, detail: paths.join("\n"), status: stepState2(it.status) };
     }
     case "mcpToolCall":
       return { kind: "tool", at, tool: "mcp", title: `${it.server}: ${it.tool}`, status: stepState2(it.status) };
@@ -15316,7 +15561,7 @@ var CodexProvider = class extends import_events5.EventEmitter {
       updatedAt: iso(t.updatedAt),
       createdAt: iso(t.createdAt),
       workspacePath: t.cwd ?? null,
-      workspaceName: t.cwd ? (0, import_path9.basename)(t.cwd) : null,
+      workspaceName: t.cwd ? (0, import_path10.basename)(t.cwd) : null,
       repo: repoFromUrl(t.gitInfo?.originUrl),
       branch: t.gitInfo?.branch ?? null,
       pendingApprovals: this.book.pending(id)
@@ -15468,8 +15713,8 @@ var CodexProvider = class extends import_events5.EventEmitter {
 
 // src/live/agents/acp.ts
 var import_events6 = require("events");
-var import_fs10 = require("fs");
-var import_path10 = require("path");
+var import_fs11 = require("fs");
+var import_path11 = require("path");
 var KNOWN_ACP_AGENTS = [
   { id: "antigravity-cli", label: "Antigravity CLI (Headless / Cloud)", command: "agy", args: ["acp", "--stdio"] },
   { id: "copilot", label: "Copilot CLI", command: "copilot", args: ["--acp"] },
@@ -15480,10 +15725,10 @@ var KNOWN_ACP_AGENTS = [
   { id: "codex-acp", label: "Codex (ACP)", command: "codex-acp", args: [] }
 ];
 function loadAcpConfig(dir) {
-  const file = (0, import_path10.join)(dir, "agents.json");
+  const file = (0, import_path11.join)(dir, "agents.json");
   let custom = [];
   try {
-    custom = (0, import_fs10.existsSync)(file) ? JSON.parse((0, import_fs10.readFileSync)(file, "utf8")) : [];
+    custom = (0, import_fs11.existsSync)(file) ? JSON.parse((0, import_fs11.readFileSync)(file, "utf8")) : [];
   } catch {
     custom = [];
   }
@@ -15501,7 +15746,7 @@ var AcpProvider = class extends import_events6.EventEmitter {
     this.id = `acp:${agent.id}`;
     this.label = agent.label;
     this.prefix = `acp:${agent.id}:`;
-    this.file = (0, import_path10.join)(storeDir, "acp-sessions.json");
+    this.file = (0, import_path11.join)(storeDir, "acp-sessions.json");
     this.sessions = this.readAll()[agent.id] ?? {};
   }
   kind = "acp";
@@ -15520,7 +15765,7 @@ var AcpProvider = class extends import_events6.EventEmitter {
   streaming = /* @__PURE__ */ new Map();
   readAll() {
     try {
-      return (0, import_fs10.existsSync)(this.file) ? JSON.parse((0, import_fs10.readFileSync)(this.file, "utf8")) : {};
+      return (0, import_fs11.existsSync)(this.file) ? JSON.parse((0, import_fs11.readFileSync)(this.file, "utf8")) : {};
     } catch {
       return {};
     }
@@ -15528,7 +15773,7 @@ var AcpProvider = class extends import_events6.EventEmitter {
   save() {
     const all = this.readAll();
     all[this.agent.id] = this.sessions;
-    (0, import_fs10.writeFileSync)(this.file, JSON.stringify(all, null, 2), { mode: 384 });
+    (0, import_fs11.writeFileSync)(this.file, JSON.stringify(all, null, 2), { mode: 384 });
   }
   available() {
     return commandExists(this.agent.command);
@@ -15565,7 +15810,7 @@ var AcpProvider = class extends import_events6.EventEmitter {
       updatedAt: s.updatedAt,
       createdAt: s.createdAt,
       workspacePath: s.cwd,
-      workspaceName: (0, import_path10.basename)(s.cwd),
+      workspaceName: (0, import_path11.basename)(s.cwd),
       repo: null,
       branch: null,
       pendingApprovals: this.book.pending(id)
@@ -15913,18 +16158,18 @@ function isSea() {
 }
 function entryCommand() {
   if (isSea()) return [process.execPath];
-  return [process.execPath, (0, import_path11.resolve)(process.argv[1])];
+  return [process.execPath, (0, import_path12.resolve)(process.argv[1])];
 }
 function install() {
   const entry = entryCommand();
-  const logDir = (0, import_path11.join)((0, import_os9.homedir)(), ".agentdeck");
-  (0, import_fs11.mkdirSync)(logDir, { recursive: true, mode: 448 });
-  (0, import_fs11.chmodSync)(logDir, 448);
+  const logDir = (0, import_path12.join)((0, import_os10.homedir)(), ".agentdeck");
+  (0, import_fs12.mkdirSync)(logDir, { recursive: true, mode: 448 });
+  (0, import_fs12.chmodSync)(logDir, 448);
   if (process.platform === "darwin") {
-    const plist = (0, import_path11.join)((0, import_os9.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
-    (0, import_fs11.mkdirSync)((0, import_path11.join)((0, import_os9.homedir)(), "Library/LaunchAgents"), { recursive: true });
+    const plist = (0, import_path12.join)((0, import_os10.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
+    (0, import_fs12.mkdirSync)((0, import_path12.join)((0, import_os10.homedir)(), "Library/LaunchAgents"), { recursive: true });
     const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-    (0, import_fs11.writeFileSync)(
+    (0, import_fs12.writeFileSync)(
       plist,
       `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -15934,24 +16179,24 @@ function install() {
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
-  <key>StandardOutPath</key><string>${esc((0, import_path11.join)(logDir, "host.log"))}</string>
-  <key>StandardErrorPath</key><string>${esc((0, import_path11.join)(logDir, "host.log"))}</string>
+  <key>StandardOutPath</key><string>${esc((0, import_path12.join)(logDir, "host.log"))}</string>
+  <key>StandardErrorPath</key><string>${esc((0, import_path12.join)(logDir, "host.log"))}</string>
 </dict></plist>
 `
     );
     try {
-      (0, import_child_process8.execFileSync)("launchctl", ["unload", plist], { stdio: "ignore" });
+      (0, import_child_process9.execFileSync)("launchctl", ["unload", plist], { stdio: "ignore" });
     } catch {
     }
-    (0, import_child_process8.execFileSync)("launchctl", ["load", "-w", plist]);
+    (0, import_child_process9.execFileSync)("launchctl", ["load", "-w", plist]);
     console.log(`Installed. Pulsar host now starts at login.
   Dashboard: http://localhost:${PORT}/
-  Logs: ${(0, import_path11.join)(logDir, "host.log")}`);
+  Logs: ${(0, import_path12.join)(logDir, "host.log")}`);
   } else if (process.platform === "linux") {
-    const dir = (0, import_path11.join)((0, import_os9.homedir)(), ".config/systemd/user");
-    (0, import_fs11.mkdirSync)(dir, { recursive: true });
-    (0, import_fs11.writeFileSync)(
-      (0, import_path11.join)(dir, "agentdeck-host.service"),
+    const dir = (0, import_path12.join)((0, import_os10.homedir)(), ".config/systemd/user");
+    (0, import_fs12.mkdirSync)(dir, { recursive: true });
+    (0, import_fs12.writeFileSync)(
+      (0, import_path12.join)(dir, "agentdeck-host.service"),
       `[Unit]
 Description=Pulsar host
 After=network-online.target
@@ -15965,23 +16210,23 @@ WantedBy=default.target
 `
     );
     try {
-      (0, import_child_process8.execFileSync)("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
-      (0, import_child_process8.execFileSync)("systemctl", ["--user", "enable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
+      (0, import_child_process9.execFileSync)("systemctl", ["--user", "daemon-reload"], { stdio: "ignore" });
+      (0, import_child_process9.execFileSync)("systemctl", ["--user", "enable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
       console.log(`Installed as a systemd user service.
   Dashboard: http://localhost:${PORT}/`);
     } catch {
-      const log = (0, import_fs11.openSync)((0, import_path11.join)(logDir, "host.log"), "a");
-      (0, import_child_process8.spawn)(entry[0], [...entry.slice(1), "start"], { detached: true, stdio: ["ignore", log, log] }).unref();
+      const log = (0, import_fs12.openSync)((0, import_path12.join)(logDir, "host.log"), "a");
+      (0, import_child_process9.spawn)(entry[0], [...entry.slice(1), "start"], { detached: true, stdio: ["ignore", log, log] }).unref();
       console.log(
         `Pulsar host is running (no systemd user session here, so it won't start by itself after a restart).
   Dashboard: http://localhost:${PORT}/
   Start it again later with: ${entry.map((a) => `"${a}"`).join(" ")} start
-  Logs: ${(0, import_path11.join)(logDir, "host.log")}`
+  Logs: ${(0, import_path12.join)(logDir, "host.log")}`
       );
     }
   } else if (process.platform === "win32") {
-    const startup = (0, import_path11.join)(process.env["APPDATA"] ?? (0, import_os9.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
-    (0, import_fs11.writeFileSync)((0, import_path11.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${entry.map((a) => `""${a}""`).join(" ")} start", 0, False
+    const startup = (0, import_path12.join)(process.env["APPDATA"] ?? (0, import_os10.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
+    (0, import_fs12.writeFileSync)((0, import_path12.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${entry.map((a) => `""${a}""`).join(" ")} start", 0, False
 `);
     console.log(`Installed in your Startup folder. Sign out and back in, or run: agentdeck-host start`);
   } else {
@@ -15990,22 +16235,22 @@ WantedBy=default.target
 }
 function uninstall() {
   if (process.platform === "darwin") {
-    const plist = (0, import_path11.join)((0, import_os9.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
-    if ((0, import_fs11.existsSync)(plist)) {
+    const plist = (0, import_path12.join)((0, import_os10.homedir)(), "Library/LaunchAgents/com.agentdeck.host.plist");
+    if ((0, import_fs12.existsSync)(plist)) {
       try {
-        (0, import_child_process8.execFileSync)("launchctl", ["unload", "-w", plist], { stdio: "ignore" });
+        (0, import_child_process9.execFileSync)("launchctl", ["unload", "-w", plist], { stdio: "ignore" });
       } catch {
       }
-      (0, import_fs11.rmSync)(plist);
+      (0, import_fs12.rmSync)(plist);
     }
   } else if (process.platform === "linux") {
     try {
-      (0, import_child_process8.execFileSync)("systemctl", ["--user", "disable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
+      (0, import_child_process9.execFileSync)("systemctl", ["--user", "disable", "--now", "agentdeck-host.service"], { stdio: "ignore" });
     } catch {
     }
-    (0, import_fs11.rmSync)((0, import_path11.join)((0, import_os9.homedir)(), ".config/systemd/user/agentdeck-host.service"), { force: true });
+    (0, import_fs12.rmSync)((0, import_path12.join)((0, import_os10.homedir)(), ".config/systemd/user/agentdeck-host.service"), { force: true });
   } else if (process.platform === "win32") {
-    (0, import_fs11.rmSync)((0, import_path11.join)(process.env["APPDATA"] ?? (0, import_os9.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup/AgentDeck Host.vbs"), { force: true });
+    (0, import_fs12.rmSync)((0, import_path12.join)(process.env["APPDATA"] ?? (0, import_os10.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup/AgentDeck Host.vbs"), { force: true });
   }
   console.log("Removed the Pulsar login item. Pairings in ~/.agentdeck were kept.");
 }
@@ -16037,8 +16282,8 @@ async function runningVersion() {
 }
 async function setup() {
   if (process.platform !== "win32") throw new Error("setup is for Windows; on a Mac use the Pulsar app, elsewhere run: agentdeck-host install");
-  const dir = (0, import_path11.join)(process.env["LOCALAPPDATA"] ?? (0, import_path11.join)((0, import_os9.homedir)(), "AppData", "Local"), "AgentDeck");
-  const target = (0, import_path11.join)(dir, "AgentDeck.exe");
+  const dir = (0, import_path12.join)(process.env["LOCALAPPDATA"] ?? (0, import_path12.join)((0, import_os10.homedir)(), "AppData", "Local"), "AgentDeck");
+  const target = (0, import_path12.join)(dir, "AgentDeck.exe");
   console.log("Setting up Pulsar\u2026");
   const running = await runningVersion();
   if (running && running !== HOST_VERSION) {
@@ -16047,11 +16292,11 @@ async function setup() {
     for (let i = 0; i < 20 && await runningVersion(); i++) await sleep(500);
   }
   if (running !== HOST_VERSION) {
-    (0, import_fs11.mkdirSync)(dir, { recursive: true });
-    if ((0, import_path11.resolve)(process.execPath).toLowerCase() !== (0, import_path11.resolve)(target).toLowerCase()) {
+    (0, import_fs12.mkdirSync)(dir, { recursive: true });
+    if ((0, import_path12.resolve)(process.execPath).toLowerCase() !== (0, import_path12.resolve)(target).toLowerCase()) {
       for (let i = 0; ; i++) {
         try {
-          (0, import_fs11.copyFileSync)(process.execPath, target);
+          (0, import_fs12.copyFileSync)(process.execPath, target);
           break;
         } catch (e) {
           if (i >= 10) throw new Error(`Could not copy Pulsar to ${dir}: ${e.message}`);
@@ -16059,19 +16304,19 @@ async function setup() {
         }
       }
     }
-    const startup = (0, import_path11.join)(process.env["APPDATA"] ?? (0, import_os9.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
-    (0, import_fs11.mkdirSync)(startup, { recursive: true });
+    const startup = (0, import_path12.join)(process.env["APPDATA"] ?? (0, import_os10.homedir)(), "Microsoft/Windows/Start Menu/Programs/Startup");
+    (0, import_fs12.mkdirSync)(startup, { recursive: true });
     const q = '""';
-    (0, import_fs11.writeFileSync)((0, import_path11.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${q}${target}${q} start", 0, False
+    (0, import_fs12.writeFileSync)((0, import_path12.join)(startup, "AgentDeck Host.vbs"), `CreateObject("WScript.Shell").Run "${q}${target}${q} start", 0, False
 `);
-    (0, import_child_process8.spawn)(target, ["start"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    (0, import_child_process9.spawn)(target, ["start"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
     for (let i = 0; i < 40 && !await runningVersion(); i++) await sleep(500);
   }
   const now = await runningVersion();
   if (!now) throw new Error('Pulsar did not start. Run "AgentDeck.exe start" in a terminal to see why, or contact support.');
   console.log(`Pulsar ${now} is running and starts with Windows.
   Pair your phone: http://localhost:${PORT}/pair`);
-  if (!process.argv.includes("--no-browser")) (0, import_child_process8.spawn)("cmd", ["/c", "start", "", `http://localhost:${PORT}/pair`], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+  if (!process.argv.includes("--no-browser")) (0, import_child_process9.spawn)("cmd", ["/c", "start", "", `http://localhost:${PORT}/pair`], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   await sleep(3e3);
 }
 var commands = { start, pair, status, install, uninstall, doctor, activate, setup };
