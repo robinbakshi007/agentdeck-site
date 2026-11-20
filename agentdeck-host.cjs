@@ -15463,6 +15463,7 @@ var import_events6 = require("events");
 var import_fs10 = require("fs");
 var import_path10 = require("path");
 var KNOWN_ACP_AGENTS = [
+  { id: "antigravity-cli", label: "Antigravity CLI (Headless / Cloud)", command: "agy", args: ["acp", "--stdio"] },
   { id: "copilot", label: "Copilot CLI", command: "copilot", args: ["--acp"] },
   { id: "cursor", label: "Cursor", command: "cursor-agent", args: ["acp"] },
   { id: "goose", label: "Goose", command: "goose", args: ["acp"] },
