@@ -11698,44 +11698,97 @@ var import_path4 = require("path");
 var MAX_SCAN_BYTES = 25 * 1024 * 1024;
 var EICAR_SIGNATURE = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
 var DISGUISED_BINARIES = [
-  { name: "Windows PE/EXE (MZ)", bytes: [77, 90] },
-  { name: "Linux ELF binary", bytes: [127, 69, 76, 70] },
-  { name: "Mach-O 64-bit binary (LE)", bytes: [207, 250, 237, 254] },
-  { name: "Mach-O 64-bit binary (BE)", bytes: [254, 237, 250, 207] },
-  { name: "Mach-O 32-bit binary", bytes: [206, 250, 237, 254] },
-  { name: "Mach-O Universal binary", bytes: [202, 254, 186, 190] },
-  { name: "Windows Shortcut (.lnk)", bytes: [76, 0, 0, 0, 1, 20, 2, 0] },
-  { name: "Compiled HTML Help (.chm)", bytes: [73, 84, 83, 70] },
-  { name: "Unix shell shebang (#!/)", bytes: [35, 33, 47] }
+  { name: "Windows PE/EXE (MZ)", mime: "application/x-dosexec", bytes: [77, 90] },
+  { name: "Linux ELF binary", mime: "application/x-elf", bytes: [127, 69, 76, 70] },
+  { name: "Mach-O 64-bit binary (LE)", mime: "application/x-mach-binary", bytes: [207, 250, 237, 254] },
+  { name: "Mach-O 64-bit binary (BE)", mime: "application/x-mach-binary", bytes: [254, 237, 250, 207] },
+  { name: "Mach-O 32-bit binary", mime: "application/x-mach-binary", bytes: [206, 250, 237, 254] },
+  { name: "Mach-O Universal binary", mime: "application/x-mach-binary", bytes: [202, 254, 186, 190] },
+  { name: "Windows Shortcut (.lnk)", mime: "application/x-ms-shortcut", bytes: [76, 0, 0, 0, 1, 20, 2, 0] },
+  { name: "Compiled HTML Help (.chm)", mime: "application/vnd.ms-htmlhelp", bytes: [73, 84, 83, 70] },
+  { name: "Unix shell shebang (#!/)", mime: "text/x-shellscript", bytes: [35, 33, 47] }
 ];
 var PDF_EXPLOIT_PATTERNS = [
   { name: "PDF JavaScript execution (/JavaScript or /JS)", re: /\/(JavaScript|JS)\b/i },
   { name: "PDF system command launch (/Launch)", re: /\/Launch\b/i },
-  { name: "PDF auto-trigger action (/OpenAction or /AA)", re: /\/(OpenAction|AA)\b/i },
   { name: "PDF embedded RichMedia / Flash (/RichMedia)", re: /\/RichMedia\b/i },
-  { name: "PDF external form exfiltration (/SubmitForm or /ImportData)", re: /\/(SubmitForm|ImportData)\b/i }
+  { name: "PDF external form exfiltration (/SubmitForm or /ImportData)", re: /\/(SubmitForm|ImportData)\b/i },
+  { name: "PDF active OpenAction/AA dictionary", re: /\/(OpenAction|AA)\s*<<[^>]*\/(JavaScript|JS|Launch|SubmitForm|ImportData|GoToR|URI)\b/i }
 ];
+var YARA_EDGE_PATTERNS = [
+  { name: "YARA:PHP_Webshell", re: /<\?(?:php|=)[\s\S]{0,400}\b(eval|system|shell_exec|passthru|proc_open)\s*\(\s*\$_(GET|POST|REQUEST|COOKIE)/i },
+  { name: "YARA:ReverseShell", re: /(\/dev\/tcp\/\d{1,3}(?:\.\d{1,3}){3}\/\d+|\b(?:nc|ncat|netcat)\b[^\n]{0,60}\s-e\s+\/bin\/(?:ba)?sh\b)/i },
+  { name: "YARA:PowerShellDropper", re: /\bpowershell(?:\.exe)?\b[^\n]{0,120}(?:-(?:enc|encodedcommand)\s+[A-Za-z0-9+/=]{24,}|IEX\s*\(\s*New-Object\s+Net\.WebClient)/i }
+];
+var DANGEROUS_ZIP_EXT = /\.(exe|dll|bat|cmd|ps1|vbs|scr|msi|hta|sh|php|jar|lnk|chm)$/i;
+var VBA_MACRO_ENTRY = /(^|\/)(vbaProject\.bin|vbaData\.xml)/i;
 function startsWithBytes(buf, sig) {
   if (buf.length < sig.length) return false;
   for (let i = 0; i < sig.length; i++) if (buf[i] !== sig[i]) return false;
   return true;
 }
+function sniffMime(buf) {
+  if (startsWithBytes(buf, [137, 80, 78, 71, 13, 10, 26, 10])) return "image/png";
+  if (startsWithBytes(buf, [255, 216, 255])) return "image/jpeg";
+  if (startsWithBytes(buf, [71, 73, 70, 56])) return "image/gif";
+  if (startsWithBytes(buf, [82, 73, 70, 70]) && buf.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+  if (startsWithBytes(buf, [37, 80, 68, 70, 45])) return "application/pdf";
+  if (startsWithBytes(buf, [80, 75, 3, 4])) return "application/zip";
+  for (const sig of DISGUISED_BINARIES) if (startsWithBytes(buf, sig.bytes)) return sig.mime;
+  return "application/octet-stream";
+}
 function verifyDeclaredImageMagic(buf, mimeType) {
   const m = mimeType.toLowerCase().trim();
-  if (m === "image/png" && !startsWithBytes(buf, [137, 80, 78, 71, 13, 10, 26, 10])) {
-    return "Claimed image/png does not match PNG magic header";
+  if (m === "image/png" && !startsWithBytes(buf, [137, 80, 78, 71, 13, 10, 26, 10])) return "Claimed image/png does not match PNG magic header";
+  if ((m === "image/jpeg" || m === "image/jpg") && !startsWithBytes(buf, [255, 216, 255])) return "Claimed image/jpeg does not match JPEG magic header";
+  if (m === "image/gif" && !startsWithBytes(buf, [71, 73, 70, 56])) return "Claimed image/gif does not match GIF magic header";
+  if (m === "image/webp" && !(startsWithBytes(buf, [82, 73, 70, 70]) && buf.subarray(8, 12).toString("ascii") === "WEBP")) return "Claimed image/webp does not match RIFF/WEBP magic header";
+  if (m === "application/pdf" && !startsWithBytes(buf, [37, 80, 68, 70, 45])) return "Claimed application/pdf does not match %PDF- magic header";
+  return null;
+}
+function inspectZipHeaders(buf) {
+  if (!startsWithBytes(buf, [80, 75, 3, 4])) return null;
+  let eocd = -1;
+  const start2 = Math.max(0, buf.length - 65557);
+  for (let i = buf.length - 22; i >= start2; i--) {
+    if (buf.readUInt32LE(i) === 101010256) {
+      eocd = i;
+      break;
+    }
   }
-  if ((m === "image/jpeg" || m === "image/jpg") && !startsWithBytes(buf, [255, 216, 255])) {
-    return "Claimed image/jpeg does not match JPEG magic header";
-  }
-  if (m === "image/gif" && !startsWithBytes(buf, [71, 73, 70, 56])) {
-    return "Claimed image/gif does not match GIF magic header";
-  }
-  if (m === "image/webp" && !(startsWithBytes(buf, [82, 73, 70, 70]) && buf.subarray(8, 12).toString("ascii") === "WEBP")) {
-    return "Claimed image/webp does not match RIFF/WEBP magic header";
-  }
-  if (m === "application/pdf" && !startsWithBytes(buf, [37, 80, 68, 70, 45])) {
-    return "Claimed application/pdf does not match %PDF- magic header";
+  let pos = eocd >= 0 ? buf.readUInt32LE(eocd + 16) : 0;
+  const end = eocd >= 0 ? Math.min(buf.length, pos + buf.readUInt32LE(eocd + 12)) : buf.length;
+  const sig = eocd >= 0 ? 33639248 : 67324752;
+  let entries = 0;
+  let totalUncomp = 0;
+  while (pos + (eocd >= 0 ? 46 : 30) <= end && buf.readUInt32LE(pos) === sig) {
+    const comp = buf.readUInt32LE(pos + (eocd >= 0 ? 20 : 18));
+    const uncomp = buf.readUInt32LE(pos + (eocd >= 0 ? 24 : 22));
+    const nameLen = buf.readUInt16LE(pos + (eocd >= 0 ? 28 : 26));
+    const extraLen = buf.readUInt16LE(pos + (eocd >= 0 ? 30 : 28));
+    const commentLen = eocd >= 0 ? buf.readUInt16LE(pos + 32) : 0;
+    const headerLen = eocd >= 0 ? 46 : 30;
+    if (pos + headerLen + nameLen > buf.length) break;
+    const name = buf.subarray(pos + headerLen, pos + headerLen + nameLen).toString("utf8");
+    entries++;
+    totalUncomp += uncomp;
+    const ratio = comp > 0 ? uncomp / comp : uncomp > 0 ? Infinity : 1;
+    const norm = name.replace(/\\/g, "/");
+    if (norm.startsWith("/") || /^[A-Za-z]:/.test(norm) || norm.split("/").includes("..") || norm.includes("\0")) {
+      return { threat: "ZipSlipPathTraversal", details: `Malicious archive path: ${name.slice(0, 100)}`, verdict: "infected" };
+    }
+    if (entries > 2e3 || totalUncomp > 250 * 1024 * 1024 || uncomp > 1024 * 1024 && ratio > 100) {
+      return { threat: "ZipBombDetected", details: `Archive bomb blocked (expanded=${totalUncomp} bytes, ratio=${Math.round(ratio)}:1)`, verdict: "infected" };
+    }
+    if (VBA_MACRO_ENTRY.test(name)) {
+      return { threat: "OfficeVbaMacroDetected", details: `Active Office VBA macro stream blocked: ${name}`, verdict: "suspicious" };
+    }
+    if (DANGEROUS_ZIP_EXT.test(name)) {
+      return { threat: "ArchiveExecutableEntry", details: `Executable inside archive blocked: ${name.slice(0, 100)}`, verdict: "infected" };
+    }
+    const step = headerLen + nameLen + extraLen + commentLen + (eocd >= 0 ? 0 : comp);
+    if (step <= 0) break;
+    pos += step;
   }
   return null;
 }
@@ -11778,35 +11831,45 @@ async function scanWithClamdSocket(buf, socketPath) {
 }
 async function scanBuffer(buf, opts = {}) {
   const bytes = buf.length;
+  const detectedMime = sniffMime(buf);
   if (bytes > MAX_SCAN_BYTES) {
-    return { clean: false, engine: "tier0-magic", threat: "PayloadTooLarge", details: `File exceeds ${MAX_SCAN_BYTES} bytes scan limit`, bytes };
+    return { clean: false, verdict: "not_scanned", hasFailed: true, detectedMime, engine: "tier0-magic", threat: "PayloadTooLarge", details: `File exceeds ${MAX_SCAN_BYTES} bytes scan limit`, bytes };
   }
   if (opts.filename && opts.filename.includes("\0")) {
-    return { clean: false, engine: "tier0-magic", threat: "NullByteFilenameInjection", details: "Filename contains a null byte", bytes };
+    return { clean: false, verdict: "infected", hasFailed: false, detectedMime, engine: "tier0-magic", threat: "NullByteFilenameInjection", details: "Filename contains a null byte", bytes };
   }
   for (const sig of DISGUISED_BINARIES) {
     if (startsWithBytes(buf, sig.bytes)) {
-      return { clean: false, engine: "tier0-magic", threat: `DisguisedExecutable:${sig.name}`, details: `Blocked executable header (${sig.name})`, bytes };
+      return { clean: false, verdict: "infected", hasFailed: false, detectedMime: sig.mime, engine: "tier0-magic", threat: `DisguisedExecutable:${sig.name}`, details: `Blocked executable header (${sig.name})`, bytes };
     }
   }
   if (opts.mimeType) {
     const mismatch = verifyDeclaredImageMagic(buf, opts.mimeType);
     if (mismatch) {
-      return { clean: false, engine: "tier0-magic", threat: "MimeMagicMismatch", details: mismatch, bytes };
+      return { clean: false, verdict: "suspicious", hasFailed: false, detectedMime, engine: "tier0-magic", threat: "MimeMagicMismatch", details: mismatch, bytes };
     }
+  }
+  const zipIssue = inspectZipHeaders(buf);
+  if (zipIssue) {
+    return { clean: false, verdict: zipIssue.verdict, hasFailed: false, detectedMime, engine: "tier0-archive", threat: zipIssue.threat, details: zipIssue.details, bytes };
   }
   const sampleText = buf.subarray(0, Math.min(buf.length, 256 * 1024)).toString("latin1");
   if (sampleText.includes(EICAR_SIGNATURE)) {
-    return { clean: false, engine: "tier1-heuristic", threat: "EICAR-Test-Signature", details: "Standard EICAR antivirus test signature detected", bytes };
+    return { clean: false, verdict: "infected", hasFailed: false, detectedMime, engine: "tier1-heuristic", threat: "EICAR-Test-Signature", details: "Standard EICAR antivirus test signature detected", bytes };
   }
-  if (opts.mimeType?.toLowerCase().startsWith("image/") && /<\s*(script|svg[^>]+onload\s*=)/i.test(sampleText)) {
-    return { clean: false, engine: "tier1-heuristic", threat: "PolyglotImageXSS", details: "Embedded active script tag inside image payload", bytes };
+  if (opts.mimeType?.toLowerCase().startsWith("image/") && /<\s*(script\b|svg[^>]+onload\s*=|\?php\b)/i.test(sampleText)) {
+    return { clean: false, verdict: "infected", hasFailed: false, detectedMime, engine: "tier1-heuristic", threat: "PolyglotImagePayload", details: "Embedded active script/PHP payload inside image", bytes };
+  }
+  for (const yr of YARA_EDGE_PATTERNS) {
+    if (yr.re.test(sampleText)) {
+      return { clean: false, verdict: "infected", hasFailed: false, detectedMime, engine: "tier1-heuristic", threat: yr.name, details: `Blocked by ${yr.name}`, bytes };
+    }
   }
   if (startsWithBytes(buf, [37, 80, 68, 70, 45]) || opts.mimeType?.toLowerCase() === "application/pdf") {
     const pdfText = buf.subarray(0, Math.min(buf.length, 2 * 1024 * 1024)).toString("latin1");
     for (const pat of PDF_EXPLOIT_PATTERNS) {
       if (pat.re.test(pdfText)) {
-        return { clean: false, engine: "tier2-pdf-ast", threat: `PdfExploit:${pat.name}`, details: `Blocked active PDF object (${pat.name})`, bytes };
+        return { clean: false, verdict: "infected", hasFailed: false, detectedMime: "application/pdf", engine: "tier2-pdf-ast", threat: `PdfExploit:${pat.name}`, details: `Blocked active PDF object (${pat.name})`, bytes };
       }
     }
   }
@@ -11823,17 +11886,17 @@ async function scanBuffer(buf, opts = {}) {
       if (r.checked) {
         clamdChecked = true;
         if (r.threat) {
-          return { clean: false, engine: "tier3-clamd", threat: r.threat, details: `ClamAV daemon detected ${r.threat}`, clamdChecked: true, bytes };
+          return { clean: false, verdict: "infected", hasFailed: false, detectedMime, engine: "tier3-clamd", threat: r.threat, details: `ClamAV daemon detected ${r.threat}`, clamdChecked: true, bytes };
         }
         break;
       }
     }
   }
-  return { clean: true, engine: "clean", clamdChecked, bytes };
+  return { clean: true, verdict: "clean", hasFailed: false, detectedMime, engine: "clean", clamdChecked, bytes };
 }
 async function scanWorkspaceFile(workspacePath, relPath) {
   if (relPath.includes("\0")) {
-    return { clean: false, engine: "tier0-magic", threat: "NullByteFilenameInjection", details: "Filename contains a null byte", bytes: 0 };
+    return { clean: false, verdict: "infected", hasFailed: false, detectedMime: "application/octet-stream", engine: "tier0-magic", threat: "NullByteFilenameInjection", details: "Filename contains a null byte", bytes: 0 };
   }
   const abs = (0, import_path4.normalize)((0, import_path4.join)(workspacePath, relPath));
   const rel = (0, import_path4.relative)(workspacePath, abs);
@@ -11844,7 +11907,7 @@ async function scanWorkspaceFile(workspacePath, relPath) {
   if ((0, import_fs4.lstatSync)(abs).isSymbolicLink()) throw new Error("Refusing to scan symlink");
   const st = (0, import_fs4.statSync)(abs);
   if (st.size > MAX_SCAN_BYTES) {
-    return { clean: false, engine: "tier0-magic", threat: "PayloadTooLarge", details: `File exceeds ${MAX_SCAN_BYTES} bytes scan limit`, bytes: st.size };
+    return { clean: false, verdict: "not_scanned", hasFailed: true, detectedMime: "application/octet-stream", engine: "tier0-magic", threat: "PayloadTooLarge", details: `File exceeds ${MAX_SCAN_BYTES} bytes scan limit`, bytes: st.size };
   }
   const buf = (0, import_fs4.readFileSync)(abs);
   return scanBuffer(buf, { filename: rel });
