@@ -7,9 +7,13 @@
 
 <form id="lookup" class="card" style="display:grid;gap:10px">
   <label>Your license key<br><input id="key" required placeholder="ADK-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" style="font:16px ui-monospace,Menlo,monospace;padding:9px 12px;border:1px solid var(--border);border-radius:8px;width:100%;max-width:420px;background:var(--bg);color:var(--text)"></label>
-  <button class="btn">Show my plan</button>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn" type="submit">Show my plan</button>
+    <button class="btn ghost" type="button" id="pkLogin">🔑 Sign in with Passkey</button>
+  </div>
   <p class="muted" style="margin:0;font-size:14px">It's in your welcome email, on your invoices, and on the Pulsar dashboard of any computer you activated.</p>
   <p id="err" hidden style="margin:0;color:#DC2626"></p>
+  <p id="pkMsg" hidden style="margin:0;color:#16A34A;font-size:14px"></p>
 </form>
 
 <section id="summary" hidden class="card" style="display:grid;gap:8px">
@@ -18,9 +22,10 @@
   <p id="computers" class="muted" style="margin:0"></p>
   <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
     <a id="manage" class="btn" href="#">Manage billing</a>
+    <button id="pkSave" type="button" class="btn ghost">🔑 Save Passkey</button>
     <button id="cancel" class="btn ghost" hidden>Cancel plan</button>
   </div>
-  <p class="muted" style="margin:0;font-size:14px">Manage billing: add a card, add or remove computers, download invoices.</p>
+  <p class="muted" style="margin:0;font-size:14px">Manage billing: add a card, add or remove computers, download invoices. Save a Passkey to recover your license key with Face ID / Touch ID / Windows Hello.</p>
 </section>
 
 <!-- Cancellation: what you'll lose, then two deals (each one can be skipped), then a final confirmation. -->
@@ -86,10 +91,13 @@
 </style>
 <script>
 const BILL='https://agentdeck-billing.finnova.com.au';
+const PASSKEY='https://agentdeck-passkey.finnova.com.au';
 const $=(id)=>document.getElementById(id);
+const b64uToBuf=(s)=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((s.length+3)%4)),c=>c.charCodeAt(0));
+const bufToB64u=(b)=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 const usd=(c)=>'US$'+(c/100).toFixed(2);
 const date=(s)=>new Date(s*1000).toLocaleDateString(undefined,{day:'numeric',month:'long',year:'numeric'});
-const PLANS={trial:'Free trial',monthly:'Pulsar Pro monthly',annual:'Pulsar Pro annual',yearly:'Pulsar Pro yearly deal',lifetime:'Pulsar Pro lifetime'};
+const PLANS={trial:'Free trial',monthly:'Pulsar Pro monthly',annual:'Pulsar Pro annual',yearly:'Pulsar Pro yearly deal',lifetime:'Pulsar Pro lifetime',cloud:'Pulsar Cloud Pro'};
 let key='',acc=null,steps=[];
 
 const api=async(path,body={})=>{const r=await fetch(BILL+path,{method:'POST',body:JSON.stringify({key,...body})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Something went wrong. Please try again.');return j;};
@@ -126,6 +134,25 @@ async function load(){
 }
 
 $('lookup').addEventListener('submit',(e)=>{e.preventDefault();key=$('key').value.trim();history.replaceState(null,'','#key='+encodeURIComponent(key));load();});
+$('pkLogin').onclick=(e)=>busy(e.target,async()=>{
+  $('err').hidden=true;$('pkMsg').hidden=true;
+  if(!window.PublicKeyCredential)throw new Error('Passkeys are not supported in this browser.');
+  const opt=await fetch(PASSKEY+'/v1/passkey/login-options',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json());
+  const assertion=await navigator.credentials.get({publicKey:{challenge:b64uToBuf(opt.challenge),rpId:opt.rpId,userVerification:'required',timeout:60000}});
+  const res=await fetch(PASSKEY+'/v1/passkey/login-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({challenge:opt.challenge,credentialId:bufToB64u(assertion.rawId),authenticatorData:bufToB64u(assertion.response.authenticatorData),clientDataJSON:bufToB64u(assertion.response.clientDataJSON),signature:bufToB64u(assertion.response.signature)})}).then(r=>r.json());
+  if(!res.ok)throw new Error(res.error||'Passkey sign-in failed');
+  if(res.licenseKey){key=res.licenseKey;$('key').value=key;history.replaceState(null,'','#key='+encodeURIComponent(key));await load();$('pkMsg').textContent='Signed in with Passkey.';$('pkMsg').hidden=false;}
+  else{$('pkMsg').textContent='Passkey verified! Enter your license key once and tap Save Passkey to link it.';$('pkMsg').hidden=false;}
+});
+$('pkSave').onclick=(e)=>busy(e.target,async()=>{
+  $('err').hidden=true;$('pkMsg').hidden=true;
+  if(!window.PublicKeyCredential)throw new Error('Passkeys are not supported in this browser.');
+  const opt=await fetch(PASSKEY+'/v1/passkey/register-options',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:key,email:acc&&acc.email||'',licenseKey:key,label:'Pulsar Account'})}).then(r=>r.json());
+  const cred=await navigator.credentials.create({publicKey:{challenge:b64uToBuf(opt.challenge),rp:opt.rp,user:{id:b64uToBuf(opt.user.id),name:opt.user.name,displayName:opt.user.displayName},pubKeyCredParams:[{type:'public-key',alg:-7}],authenticatorSelection:{residentKey:'required',userVerification:'required'},timeout:60000,attestation:'none'}});
+  const res=await fetch(PASSKEY+'/v1/passkey/register-verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:key,email:acc&&acc.email||'',licenseKey:key,label:'Pulsar Account',challenge:opt.challenge,attestationObject:bufToB64u(cred.response.attestationObject),clientDataJSON:bufToB64u(cred.response.clientDataJSON)})}).then(r=>r.json());
+  if(!res.ok)throw new Error(res.error||'Could not save Passkey');
+  $('pkMsg').textContent='🔑 Passkey saved! Next time, tap "Sign in with Passkey" with Face ID / Touch ID / Windows Hello.';$('pkMsg').hidden=false;
+});
 $('cancel').onclick=()=>show(steps[0]);
 document.addEventListener('click',(e)=>{const go=e.target.dataset&&e.target.dataset.go;if(!go)return;
   if(go==='keep'){show(null);$('summary').scrollIntoView({behavior:'smooth'});return;}

@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.finnova.agentdeck",
+      "sha256_cert_fingerprints": [
+        "C2:0D:CE:34:19:CF:DC:1C:FA:30:55:BB:1C:A3:5E:06:98:BB:A1:E3:41:94:4D:3D:D4:FA:F2:41:81:81:75:08"
+      ]
+    }
+  }
+]
